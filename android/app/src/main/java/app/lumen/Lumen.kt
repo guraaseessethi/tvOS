@@ -77,7 +77,16 @@ object Lumen {
         settings = prefs.settings.stateIn(scope, SharingStarted.Eagerly, Settings())
         painting = combine(settings, weather) { s, w -> paintingFor(s, w) }
             .stateIn(scope, SharingStarted.Eagerly, Painting.Starry)
+        app.lumen.zeus.VoiceStudio.init(context)
     }
+
+    /** This phone's address as the TV sees it, e.g. http://192.168.2.40:8977 (PLAN 7). */
+    fun bridgeUrl(tvIp: String): String? = runCatching {
+        java.net.DatagramSocket().use { s ->
+            s.connect(java.net.InetSocketAddress(tvIp, 8060))
+            "http://${s.localAddress.hostAddress}:${app.lumen.bridge.BridgeServer.PORT}"
+        }
+    }.getOrNull()
 
     fun paintingFor(s: Settings, w: Weather?): Painting = when {
         s.overrideKey.isNotEmpty() && s.overrideUntil > System.currentTimeMillis() -> Painting.of(s.overrideKey)

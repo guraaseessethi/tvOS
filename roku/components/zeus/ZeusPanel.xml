@@ -99,7 +99,7 @@
       m.anim.observeField("state", "onAnim")
 
       setChips(["What should I watch?", "Paint me something sunny", "Sleep in 30 min", "Volume up a bit"])
-      addMessage("zeus", "Hi, I'm Zeus. Ask me to open an app, change the painting or set a sleep timer.")
+      addMessage("zeus", "Hi, I'm Zeus. Happy to fetch an app, change the painting or set a sleep timer.")
   end sub
 
   sub onDeep()

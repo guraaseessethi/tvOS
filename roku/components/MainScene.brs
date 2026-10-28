@@ -77,6 +77,8 @@ sub init()
     m.zeusAutoTimer = m.top.createChild("Timer")
     m.zeusAutoTimer.duration = 8
     m.zeusAutoTimer.observeField("fire", "onZeusAutoClose")
+    ' Zeus speaks through the TV: the phone renders the reply in a natural voice (WAV over the bridge).
+    m.voice = m.top.createChild("Audio")
     m.editing = false
     m.editHint = makeHint()
     m.zeus = m.top.createChild("ZeusPanel")
@@ -272,12 +274,18 @@ end sub
 
 sub onZeusAnswer(res as object)
     m.zeus.thinking = false
+    print "[lumen] zeus answer ok="; res.ok; " code="; res.code
     if not res.ok
-        m.zeus.callFunc("addMessage", "zeus", "I can't reach the Lumen helper right now. Try again in a moment.")
+        if res.code = -1
+            m.zeus.callFunc("addMessage", "zeus", "That took too long. Try again?")
+        else
+            m.zeus.callFunc("addMessage", "zeus", "I can't reach the Lumen app on your phone right now. Is it open on the same Wi-Fi?")
+        end if
         return
     end if
     z = res.zeus
     if z.reply <> invalid and z.reply <> "" then m.zeus.callFunc("addMessage", "zeus", z.reply)
+    if z.voice <> invalid then sayOnTv(z.voice)
     if z.chips <> invalid and z.chips.Count() > 0 then m.zeus.callFunc("setChips", z.chips)
     if z.actions <> invalid then runZeusActions(z.actions)
 end sub
@@ -480,6 +488,7 @@ sub onInput()
         if z <> invalid
             if z.user <> invalid and z.user <> "" then m.zeus.callFunc("addMessage", "user", z.user)
             if z.reply <> invalid and z.reply <> "" then m.zeus.callFunc("addMessage", "zeus", z.reply)
+            if z.voice <> invalid then sayOnTv(z.voice)
             ' quiet: the exchange started a game, so don't cover it with the panel.
             if m.overlay = invalid and z.quiet <> true
                 openZeus()
@@ -519,6 +528,15 @@ sub playGame(id as string)
     m.zone = "games"
     applyFocus()
     m.gamesCard.callFunc("startGame", id)
+end sub
+
+sub sayOnTv(url as string)
+    if Left(url, 7) <> "http://" then return
+    c = CreateObject("roSGNode", "ContentNode")
+    c.url = url
+    m.voice.control = "stop"
+    m.voice.content = c
+    m.voice.control = "play"
 end sub
 
 sub onZeusAutoClose()

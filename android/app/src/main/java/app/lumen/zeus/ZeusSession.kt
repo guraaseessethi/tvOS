@@ -8,7 +8,8 @@ import java.time.OffsetDateTime
 
 /** One exchange from the phone: local intents first, then the brain; runs the actions (spec 9.1, 9.3). */
 object ZeusSession {
-    data class Result(val user: String, val answer: Answer, val receipts: List<String>)
+    /** spokeOnTv: the TV is saying the reply, so the phone stays quiet. */
+    data class Result(val user: String, val answer: Answer, val receipts: List<String>, val spokeOnTv: Boolean = false)
 
     suspend fun send(context: Context, text: String): Result {
         if (Lumen.tv.value.apps.isEmpty()) Lumen.refreshTv()
@@ -27,7 +28,18 @@ object ZeusSession {
         }
         val receipts = ActionRunner.run(answer.actions)
         ZeusLog.add(ZeusLog.Exchange(text, answer.reply, receipts, fromTv = false))
-        ActionRunner.mirrorToTv(text, answer.reply, receipts, quiet = answer.actions.any { it.type == "start_game" })
-        return Result(text, answer, receipts)
+        val quiet = answer.actions.any { it.type == "start_game" }
+        // Owner choice: Zeus answers on the TV (screen + speakers) whenever Lumen is showing.
+        // The phone only speaks when Lumen isn't on screen (e.g. you're inside Netflix).
+        val ip = Lumen.ip()
+        val onTv = s.replyOnTv && ip != null && Lumen.ecp.activeScreen(ip) == Screen.Lumen
+        var voice: String? = null
+        if (onTv && s.spokenReplies && !quiet) {
+            val clip = VoiceStudio.render(answer.reply, s.voiceName)
+            val base = Lumen.bridgeUrl(ip!!)
+            if (clip != null && base != null) voice = "$base/voice/$clip"
+        }
+        ActionRunner.mirrorToTv(text, answer.reply, receipts, quiet = quiet, voice = voice)
+        return Result(text, answer, receipts, spokeOnTv = onTv && voice != null)
     }
 }

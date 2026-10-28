@@ -6,7 +6,9 @@ import app.lumen.games.Game
 import app.lumen.games.Leaderboard
 import app.lumen.ecp.RokuApp
 import app.lumen.zeus.Action
+import app.lumen.zeus.Answer
 import app.lumen.zeus.LocalIntents
+import app.lumen.zeus.VoiceStudio
 import app.lumen.zeus.ZeusBrain
 import app.lumen.zeus.ZeusLog
 import fi.iki.elonen.NanoHTTPD
@@ -14,6 +16,7 @@ import fi.iki.elonen.NanoHTTPD.IHTTPSession
 import fi.iki.elonen.NanoHTTPD.Method
 import fi.iki.elonen.NanoHTTPD.Response
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
@@ -59,6 +62,10 @@ class BridgeServer(private val context: Context, port: Int, private val memories
                     else reply(200, "image/jpeg", f.readBytes())
                 }
                 path == "/sleep" -> return json(JSONObject().put("minutes", Lumen.sleepMinutesLeft()))
+                path.startsWith("/voice/") -> {
+                    val f = VoiceStudio.file(path.removePrefix("/voice/")) ?: return reply(404)
+                    return reply(200, "audio/wav", f.readBytes())
+                }
                 path.startsWith("/leaderboard/") -> {
                     val game = Game.of(path.removePrefix("/leaderboard/")) ?: return reply(404)
                     val top = Leaderboard.topOnce(context, game, 5)
@@ -103,10 +110,18 @@ class BridgeServer(private val context: Context, port: Int, private val memories
             .put("sleepTimerMinutesLeft", Lumen.sleepMinutesLeft())
         Lumen.weather.value?.let { facts.put("weather", it.line(Lumen.settings.value.fahrenheit)) }
         val answer = LocalIntents.match(message, apps, Lumen.settings.value.inputNames)
-            ?: ZeusBrain.ask(context, message, apps, ZeusLog.history(), facts)
+            ?: withTimeoutOrNull(25_000) { ZeusBrain.ask(context, message, apps, ZeusLog.history(), facts) }
+            ?: Answer("That took too long. Try again?", chips = listOf("Try again"))
         // The TV runs the actions itself; the phone keeps the conversation and shows it.
         ZeusLog.add(ZeusLog.Exchange(message, answer.reply, answer.actions.map { describe(it, apps) }, fromTv = true))
-        return answer.toJson()
+        // Zeus answers out loud on the TV, in the phone's natural voice.
+        val out = answer.toJson()
+        if (Lumen.settings.value.spokenReplies) {
+            val clip = withTimeoutOrNull(5_000) { VoiceStudio.render(answer.reply, Lumen.settings.value.voiceName) }
+            val base = Lumen.ip()?.let { Lumen.bridgeUrl(it) }
+            if (clip != null && base != null) out.put("voice", "$base/voice/$clip")
+        }
+        return out
     }
 
     private fun describe(a: Action, apps: List<RokuApp>): String = when (a.type) {

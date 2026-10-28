@@ -31,6 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,6 +64,8 @@ import app.lumen.ui.onboarding.askBatteryExemption
 import app.lumen.ui.onboarding.batteryExempt
 import app.lumen.ui.theme.Ink
 import app.lumen.ui.theme.T
+import app.lumen.zeus.Voice
+import app.lumen.zeus.VoiceStudio
 import app.lumen.zeus.ZeusBrain
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -86,6 +89,8 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
         if (ok) scope.launch { Lumen.prefs.setHeyZeus(true) } else toast("Allow the microphone for Hey Zeus")
     }
     var zeusCheck by remember { mutableStateOf<String?>(null) }
+    val sample = remember { Voice(context) }
+    DisposableEffect(Unit) { onDispose { sample.shutdown() } }
     val clipboard = LocalClipboardManager.current
 
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
@@ -137,7 +142,35 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
                 }
             }
             Divider()
-            Toggle("Spoken replies", "Zeus reads his answers out loud.", s.spokenReplies) { scope.launch { Lumen.prefs.setSpokenReplies(it) } }
+            Toggle("Spoken replies", "Zeus says his answers out loud.", s.spokenReplies) { scope.launch { Lumen.prefs.setSpokenReplies(it) } }
+            Divider()
+            Toggle(
+                "Zeus answers on the TV",
+                "Replies show and play on the TV while Lumen is open. The phone only answers when Lumen isn't on screen.",
+                s.replyOnTv,
+            ) { scope.launch { Lumen.prefs.setReplyOnTv(it) } }
+            Divider()
+            // Zeus's voice: the phone's English voices, best first. Tap to hear the next one.
+            val voices = remember { VoiceStudio.voices() }
+            if (voices.isNotEmpty()) {
+                val i = voices.indexOfFirst { it.name == s.voiceName }.coerceAtLeast(0)
+                val v = voices[i]
+                Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Zeus's voice", style = T.ui(17, FontWeight.ExtraBold, Ink.ink))
+                        Text(
+                            "Voice ${i + 1} of ${voices.size} · ${v.locale.displayCountry.ifEmpty { "English" }}" +
+                                if (v.quality >= android.speech.tts.Voice.QUALITY_HIGH) " · high quality" else "",
+                            style = T.ui(14, FontWeight.SemiBold, Ink.ink60),
+                        )
+                    }
+                    OutlineButton("Try another") {
+                        val next = voices[(i + 1) % voices.size]
+                        scope.launch { Lumen.prefs.setVoiceName(next.name) }
+                        sample.say("Hi, I'm Zeus. Want me to put something on?", next.name)
+                    }
+                }
+            }
             Divider()
             Toggle("Remote on lock screen", "Keeps Play/Pause and a Zeus button in your notifications.", s.lockRemote) { scope.launch { Lumen.prefs.setLockRemote(it) } }
             Divider()

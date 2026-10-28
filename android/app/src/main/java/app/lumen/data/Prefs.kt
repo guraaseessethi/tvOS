@@ -23,6 +23,8 @@ data class Settings(
     val autoOpen: Boolean = true,
     val spokenReplies: Boolean = true,
     val heyZeus: Boolean = false,
+    val replyOnTv: Boolean = true,
+    val voiceName: String = "",
     val lockRemote: Boolean = true,
     val followWeather: Boolean = true,
     val themeKey: String = "starry",
@@ -50,6 +52,8 @@ class Prefs(private val context: Context) {
         val autoOpen = booleanPreferencesKey("autoOpen")
         val spokenReplies = booleanPreferencesKey("spokenReplies")
         val heyZeus = booleanPreferencesKey("heyZeus")
+        val replyOnTv = booleanPreferencesKey("replyOnTv")
+        val voiceName = stringPreferencesKey("voiceName")
         val lockRemote = booleanPreferencesKey("lockRemote")
         val followWeather = booleanPreferencesKey("followWeather")
         val themeKey = stringPreferencesKey("theme")
@@ -81,6 +85,8 @@ class Prefs(private val context: Context) {
             autoOpen = p[K.autoOpen] ?: d.autoOpen,
             spokenReplies = p[K.spokenReplies] ?: d.spokenReplies,
             heyZeus = p[K.heyZeus] ?: d.heyZeus,
+            replyOnTv = p[K.replyOnTv] ?: d.replyOnTv,
+            voiceName = p[K.voiceName] ?: d.voiceName,
             lockRemote = p[K.lockRemote] ?: d.lockRemote,
             followWeather = p[K.followWeather] ?: d.followWeather,
             themeKey = p[K.themeKey] ?: d.themeKey,
@@ -104,6 +110,8 @@ class Prefs(private val context: Context) {
     suspend fun setAutoOpen(v: Boolean) = context.store.edit { it[K.autoOpen] = v }
     suspend fun setSpokenReplies(v: Boolean) = context.store.edit { it[K.spokenReplies] = v }
     suspend fun setHeyZeus(v: Boolean) = context.store.edit { it[K.heyZeus] = v }
+    suspend fun setReplyOnTv(v: Boolean) = context.store.edit { it[K.replyOnTv] = v }
+    suspend fun setVoiceName(v: String) = context.store.edit { it[K.voiceName] = v }
     suspend fun setLockRemote(v: Boolean) = context.store.edit { it[K.lockRemote] = v }
     suspend fun setFollowWeather(v: Boolean) = context.store.edit { it[K.followWeather] = v }
     suspend fun setTheme(key: String) = context.store.edit { it[K.themeKey] = key }

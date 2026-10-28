@@ -119,7 +119,7 @@ fun ZeusScreen(painting: Painting, listenRequest: Int, command: String?, onComma
             if (r.answer.chips.isNotEmpty()) chips = r.answer.chips
             transcript = ""
             phase = Phase.Reply
-            if (Lumen.settings.value.spokenReplies) voice.say(r.answer.reply)
+            if (Lumen.settings.value.spokenReplies && !r.spokeOnTv) voice.say(r.answer.reply, Lumen.settings.value.voiceName)
         }
     }
 

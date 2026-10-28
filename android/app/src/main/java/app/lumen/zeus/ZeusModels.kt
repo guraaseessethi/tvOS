@@ -50,8 +50,7 @@ object Zeus {
     val GAMES = listOf("bird", "dog", "catch")
 
     /** Answer to "what can you do?" (owner request). */
-    val ABILITIES = "I can open any app or HDMI input, turn the volume up or down, mute, play or pause, " +
-        "turn the TV on or off, set a sleep timer, repaint the screen with a different painting, " +
-        "and start Flutter, Pup Run or Star Catcher on the TV. Ask me here or on the TV."
+    val ABILITIES = "Quite a bit, actually. I can open your apps or switch inputs, turn the volume up or down, " +
+        "pause things, set a sleep timer, repaint the screen, turn the TV off, or start a game like Flutter. Just ask."
     val DEFAULT_CHIPS = listOf("What can you do?", "Paint me something sunny", "Sleep in 30 min")
 }

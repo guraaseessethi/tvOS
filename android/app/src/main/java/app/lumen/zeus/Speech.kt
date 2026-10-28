@@ -9,7 +9,6 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.flow.MutableStateFlow
-import java.util.Locale
 
 /** Hold-to-talk with live partial results (spec 15.2 speech). Call from the main thread. */
 class Speech(context: Context, private val onPartial: (String) -> Unit, private val onLevel: (Float) -> Unit,
@@ -89,11 +88,10 @@ class Voice(context: Context) {
         })
     }
 
-    fun say(text: String) {
+    fun say(text: String, preferredVoice: String = "") {
         if (!ready) return
-        val ca = Locale("en", "CA")
-        tts.language = if (tts.isLanguageAvailable(ca) >= TextToSpeech.LANG_AVAILABLE) ca else Locale.getDefault()
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "zeus")
+        VoiceStudio.choose(tts, preferredVoice)
+        tts.speak(VoiceStudio.spoken(text), TextToSpeech.QUEUE_FLUSH, null, "zeus")
     }
 
     fun stop() { tts.stop(); speaking.value = false }

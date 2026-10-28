@@ -28,8 +28,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.net.DatagramSocket
-import java.net.InetSocketAddress
 import java.text.DateFormat
 import java.util.Calendar
 import java.util.Date
@@ -160,7 +158,7 @@ class TvWatcherService : Service() {
 
     /** POST /input?bridge=<url>&phone=<status>[&theme=...] so Lumen knows where its helper is. */
     private suspend fun announce(ip: String): Boolean {
-        val url = "http://${ownIp(ip) ?: return false}:${BridgeServer.PORT}"
+        val url = Lumen.bridgeUrl(ip) ?: return false
         val name = Auth.current(this)?.name ?: ""
         val params = mutableMapOf(
             "bridge" to url,
@@ -172,13 +170,6 @@ class TvWatcherService : Service() {
         }
         return Lumen.ecp.input(ip, params)
     }
-
-    private fun ownIp(tv: String): String? = runCatching {
-        DatagramSocket().use { s ->
-            s.connect(InetSocketAddress(tv, 8060))
-            s.localAddress.hostAddress
-        }
-    }.getOrNull()
 
     // ---- sleep timer + notification ----
 
