@@ -45,3 +45,17 @@
 - **Logos** are ink-black, except YouTube's red badge (`lumen-img key … mono|mono-red`). Icons are upscaled 4x before keying and output at 2x, so edges are smooth.
 - **Memories** is the first card. Empty: a painted card with picture glyph and *Memories*. With photos: a rounded full-card slideshow (`/memories/<name>?card=1`), and OK opens a full-screen slideshow. Photos come from `~/Pictures/Lumen Memories` via the Mac helper for now; the phone app takes this over later.
 - **Home behaviour** (helper `watcher()`): backing or Home-ing out of an app onto Roku's home reopens Lumen. Home pressed while in Lumen stays on Roku's home until another app opens. Roku never reports a held Home, so "press Home twice" replaces press-and-hold. Verified: Backdrops → Home → Lumen back within ~1 s; Home in Lumen → stays on Roku home.
+
+## M3 + M4 + M6: Android app (28 Oct, built on the Mac with `android/gradlew`)
+- `android/`: Kotlin + Compose app `app.lumen` with five tabs: Remote, Apps, Zeus, Games and Setup. See `android/README.md`.
+- **Accounts (Firebase Auth):** sign up with name, email, password and confirm password, or Google. The name greets you on the TV and shows on the leaderboard.
+- **Phone hosts the bridge** (PLAN 7) on :8977, with the same contract as `bridge/lumen_bridge.py`:
+  - icons keyed in Kotlin (port of `lumen-img key`), Memories from photos picked on the phone, the sleep timer, `/zeus`;
+  - new: `POST /score` and `GET /leaderboard/<game>`.
+- **Watcher** (`TvWatcherService`): a port of the Mac helper's `watcher()`. It opens Lumen on power-on, returns to Lumen when you back out of an app, keeps Roku home after Home in Lumen, has a "Pause auto-open for 2 hours" notification action, and announces the bridge with `?bridge=&phone=&theme=`.
+- **Zeus** uses Gemini through Firebase AI Logic (no key in the APK). Local intents handle volume, play/pause, open app, inputs, power and sleep instantly. Replies can be spoken and are mirrored to the TV's Zeus panel.
+- **TV (build 31):**
+  - Games send each finished run to the bridge, and the TV toasts your leaderboard rank.
+  - Lumen accepts `?theme=` (the phone repaints the TV, or follows the weather) and `?zeus=` (phone exchanges shown in the Zeus panel).
+- **Tests:** 25 JVM unit tests in `android/app/src/test`, all passing. They were run with kotlinc + JUnit, because Google's Maven host is blocked in the cloud session, so Gradle couldn't run there. `bsc` lint on `roku/` reports no new issues.
+- **Not done yet:** "Hey Zeus" wake word, the home-screen widget, and timer handoff from the TV (15.6 phase 2).

@@ -2,7 +2,7 @@
 <!-- ECP through the Lumen bridge (Roku OS 16 blocks ECP to the channel's own TV). One task per request. -->
 <component name="EcpTask" extends="Task">
   <interface>
-    <!-- { id, base, kind: "apps" | "device" | "memories" | "launch" | "keypress", appId?, key? } -->
+    <!-- { id, base, kind: "apps" | "device" | "memories" | "launch" | "keypress" | "zeus" | "sleep" | "score", appId?, key?, game?, points? } -->
     <field id="request" type="assocarray" />
     <!-- { id, kind, ok, code, apps?, device?, photos? } -->
     <field id="response" type="assocarray" />
@@ -62,6 +62,13 @@
           r = http("POST", "/sleep/" + req.minutes.ToStr())
           res.code = r.code
           res.ok = (r.code >= 200 and r.code < 300)
+      else if req.kind = "score"
+          r = http("POST", "/score", FormatJson({ game: req.game, points: req.points }))
+          res.code = r.code
+          if r.code = 200
+              res.score = ParseJson(r.body)
+              res.ok = (res.score <> invalid and res.score.ok = true)
+          end if
       else if req.kind = "keypress"
           r = http("POST", "/keypress/" + req.key)
           res.code = r.code

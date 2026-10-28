@@ -52,6 +52,7 @@ sub init()
     m.gamesCard.theme = m.theme
     ' Spans from just right of the clock to the right edge (width 1241 from GamesCard).
     m.gamesCard.translation = [583, 160]
+    m.gamesCard.observeField("scored", "onScored")
 
     ' 6: overlays
     m.memories = m.top.createChild("MemoriesView")
@@ -461,6 +462,22 @@ sub onInput()
             m.hello.connected = (data.connected = true)
         end if
     end if
+    ' Spec 15.6: the phone repaints the TV (weather or a painting picked on the phone).
+    if args.theme <> invalid
+        t = ParseJson(args.theme)
+        if t <> invalid and t.theme <> invalid then applyTheme(t.theme)
+    end if
+    ' Spec 7.1: a voice exchange on the phone shows up in the Zeus panel, or as a toast.
+    if args.zeus <> invalid
+        z = ParseJson(args.zeus)
+        if z <> invalid
+            if z.user <> invalid and z.user <> "" then m.zeus.callFunc("addMessage", "user", z.user)
+            if z.reply <> invalid and z.reply <> ""
+                m.zeus.callFunc("addMessage", "zeus", z.reply)
+                if m.zeus.open <> true then m.toast.message = Left(z.reply, 60)
+            end if
+        end if
+    end if
     if args.bridge = invalid then return
     url = args.bridge
     if Left(url, 7) <> "http://" then return
@@ -471,6 +488,12 @@ sub onInput()
     m.launch.iconBase = url
     m.hello.bridge = url
     loadApps()
+end sub
+
+sub onScored()
+    sc = m.gamesCard.scored
+    if sc = invalid or m.bridge = "" then return
+    ecp({ kind: "score", game: sc.game, points: sc.points })
 end sub
 
 sub setUserName(name as string)
@@ -530,6 +553,13 @@ sub onEcp(event as object)
             sec = CreateObject("roRegistrySection", "lumen")
             sec.Write("appsCache", json)
             sec.Flush()
+        end if
+    else if res.kind = "score"
+        ' The phone saved the run to the leaderboard; it answers with the player's rank.
+        if res.ok and res.score.rank <> invalid
+            msg = "Leaderboard: #" + res.score.rank.ToStr()
+            if res.score.newBest = true then msg = "New best on the leaderboard: #" + res.score.rank.ToStr()
+            m.toast.message = msg
         end if
     else if res.kind = "memories"
         if res.ok

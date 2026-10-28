@@ -10,6 +10,8 @@
     <field id="deep" type="color" onChange="onDeep" />
     <field id="theme" type="string" value="starry" onChange="onTheme" />
     <field id="focused" type="boolean" value="false" onChange="onFocused" />
+    <!-- { game: "bird" | "dog" | "catch", points } once per finished run, for the phone's leaderboard -->
+    <field id="scored" type="assocarray" alwaysNotify="true" />
     <function name="handleKey" />
   </interface>
   <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
@@ -29,9 +31,9 @@
       m.glass = poster("pkg:/images/ui/glass_card_r28.9.png", 0, 0, m.W, m.H, m.top)
 
       m.games = [
-          { name: "Flutter", node: "BirdGame", icon: "bird_1.png", how: "Press OK to flap between the cypresses" }
-          { name: "Pup Run", node: "DogGame", icon: "dog_run_0.png", how: "Press OK to jump the haystacks" }
-          { name: "Star Catcher", node: "CatchGame", icon: "star.png", how: "Hold ‹ › to catch stars, dodge ink" }
+          { name: "Flutter", id: "bird", node: "BirdGame", icon: "bird_1.png", how: "Press OK to flap between the cypresses" }
+          { name: "Pup Run", id: "dog", node: "DogGame", icon: "dog_run_0.png", how: "Press OK to jump the haystacks" }
+          { name: "Star Catcher", id: "catch", node: "CatchGame", icon: "star.png", how: "Hold ‹ › to catch stars, dodge ink" }
       ]
       m.tabs = []
       x = 14
@@ -164,6 +166,7 @@
       g.observeField("state", "refresh")
       g.observeField("points", "onPoints")
       m.game = g
+      m.lastState = g.state
       m.cardIcon.uri = "pkg:/images/games/" + m.games[m.index].icon
       paintTabs()
       refresh()
@@ -194,6 +197,10 @@
       if m.game = invalid then return
       st = m.game.state
       g = m.games[m.index]
+      if st = "over" and m.lastState <> "over" and m.game.points > 0
+          m.top.scored = { game: g.id, points: m.game.points }
+      end if
+      m.lastState = st
       onPoints()
       m.score.visible = (st = "play")
       m.scoreShadow.visible = (st = "play")
