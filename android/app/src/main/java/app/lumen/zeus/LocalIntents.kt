@@ -15,6 +15,11 @@ object LocalIntents {
     fun match(raw: String, apps: List<RokuApp>, inputNames: Map<String, String>): Answer? {
         val t = raw.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
         if (t.isEmpty()) return null
+        if (Regex("^(what (can|do) you do|what are you able to do|what can i (ask|say)|help|what can zeus do|how do you work)( for me)?$").matches(t))
+            return Answer(Zeus.ABILITIES, emptyList(), listOf("Open YouTube", "Play Flutter", "Sleep in 30 min", "Paint me something sunny"))
+        gameIn(t)?.let { (id, name) ->
+            return Answer("Starting $name on the TV. Good luck.", listOf(Action("start_game", game = id)), listOf("Play Pup Run", "Play Star Catcher", "Go home"))
+        }
         val amount = when {
             t.contains("a lot") || t.contains("way") -> 8
             t.contains("a bit") || t.contains("little") -> 3
@@ -70,6 +75,18 @@ object LocalIntents {
             }?.let { return Answer("Switching to ${inputNames[it.id] ?: it.name}.", listOf(Action("switch_input", inputId = it.id)), listOf("Go home")) }
         }
         return null
+    }
+
+    /** "play flutter", "start pup run", "let's play star catcher", "open the bird game"… */
+    private fun gameIn(t: String): Pair<String, String>? {
+        if (!Regex("^(let s |lets )?(play|start|open|launch|put on)\\b").containsMatchIn(t)) return null
+        return when {
+            Regex("\\b(flutter|flappy|bird game|the bird)\\b").containsMatchIn(t) -> "bird" to "Flutter"
+            Regex("\\b(pup run|pup|dog game|the dog|dino|runner)\\b").containsMatchIn(t) -> "dog" to "Pup Run"
+            Regex("\\b(star catcher|stars?|catch(ing)? game)\\b").containsMatchIn(t) -> "catch" to "Star Catcher"
+            Regex("\\b(a )?game\\b").containsMatchIn(t) -> "bird" to "Flutter"
+            else -> null
+        }
     }
 
     private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()

@@ -13,6 +13,8 @@
     <!-- { game: "bird" | "dog" | "catch", points } once per finished run, for the phone's leaderboard -->
     <field id="scored" type="assocarray" alwaysNotify="true" />
     <function name="handleKey" />
+    <!-- startGame("bird" | "dog" | "catch"): switch to that game and start a run (from the phone or Zeus) -->
+    <function name="startGame" />
   </interface>
   <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
   <script type="text/brightscript">
@@ -278,6 +280,18 @@
   end sub
 
   ' Called by MainScene while the panel has focus (presses, and "<key>_up" releases).
+  function startGame(id as string) as boolean
+      for i = 0 to m.games.Count() - 1
+          if m.games[i].id = id and i <> m.index
+              m.index = i
+              loadGame()
+          end if
+      end for
+      st = m.game.state
+      if st = "ready" or st = "over" or st = "paused" then m.game.key = "OK"
+      return true
+  end function
+
   function handleKey(key as string) as boolean
       st = m.game.state
       inRun = (st = "play" or st = "paused")

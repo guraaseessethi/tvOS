@@ -42,7 +42,7 @@ object ZeusBrain {
         You can act on the TV with these actions:
           launch_app {appId}, switch_input {inputId}, keypress {key, repeat}, power {state: on|off},
           set_theme {theme}, clear_theme_override, set_sleep_timer {minutes}, cancel_sleep_timer,
-          open_lumen, show_message {text}.
+          open_lumen, show_message {text}, start_game {game: bird|dog|catch}.
         Rules:
         - Only use app and input IDs from the lists you are given. Never invent IDs.
         - keypress keys: VolumeUp, VolumeDown, VolumeMute, Play, Rev, Fwd, Home, Back, InstantReplay.
@@ -51,6 +51,10 @@ object ZeusBrain {
         - set_theme changes Lumen's painting: starry (Starry Night), sunflower (Sunflower Field),
           irises (Irises in the Rain), blossom (Almond Blossom), snow (Snowy Evening).
         - set_sleep_timer takes minutes from 5 to 240.
+        - Games on the TV: bird is Flutter (a one-button flier), dog is Pup Run (jump the haystacks),
+          catch is Star Catcher (catch falling stars). start_game opens one on the TV.
+        - Asked what you can do: say you open apps and inputs, change volume, play or pause, turn the TV
+          on or off, set sleep timers, repaint the screen and start games, in one or two sentences.
         - If you do something, say what you did in the reply. If nothing fits, say so instead of guessing.
         Answer with JSON only: {"reply": "...", "actions": [...], "chips": ["...", "..."]}
         with 2 to 4 short follow-up chips (under 5 words each) the person might tap next.
@@ -71,8 +75,9 @@ object ZeusBrain {
                         "theme" to Schema.enumeration(Zeus.THEMES),
                         "minutes" to Schema.integer(),
                         "text" to Schema.string(),
+                        "game" to Schema.enumeration(Zeus.GAMES),
                     ),
-                    listOf("appId", "inputId", "key", "repeat", "state", "theme", "minutes", "text"),
+                    listOf("appId", "inputId", "key", "repeat", "state", "theme", "minutes", "text", "game"),
                 ),
             ),
             "chips" to Schema.array(Schema.string()),

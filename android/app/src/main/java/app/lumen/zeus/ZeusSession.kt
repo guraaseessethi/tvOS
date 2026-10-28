@@ -27,7 +27,7 @@ object ZeusSession {
         }
         val receipts = ActionRunner.run(answer.actions)
         ZeusLog.add(ZeusLog.Exchange(text, answer.reply, receipts, fromTv = false))
-        ActionRunner.mirrorToTv(text, answer.reply, receipts)
+        ActionRunner.mirrorToTv(text, answer.reply, receipts, quiet = answer.actions.any { it.type == "start_game" })
         return Result(text, answer, receipts)
     }
 }

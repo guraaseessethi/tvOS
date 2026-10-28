@@ -62,6 +62,10 @@ object ActionRunner {
                     Lumen.setSleep(0)
                     receipts += "Sleep timer off"
                 }
+                "start_game" -> {
+                    val name = when (a.game) { "dog" -> "Pup Run"; "catch" -> "Star Catcher"; else -> "Flutter" }
+                    receipts += if (startGame(a.game ?: "bird")) "$name started on TV" else "Couldn't start $name"
+                }
                 "open_lumen" -> receipts += if (ecp.launch(ip, "dev")) "Lumen opened" else "Couldn't open Lumen"
                 "show_message" -> {
                     if (Lumen.tv.value.screen == Screen.Lumen) ecp.input(ip, mapOf("zeus" to JSONObject().put("reply", a.text).toString()))
@@ -71,13 +75,28 @@ object ActionRunner {
         return receipts
     }
 
+    /** Opens Lumen if needed, then asks it to focus the games card and start that game. */
+    suspend fun startGame(id: String): Boolean {
+        val ip = Lumen.ip() ?: return false
+        val ecp = Lumen.ecp
+        if (ecp.activeScreen(ip) != Screen.Lumen) {
+            if (!ecp.launch(ip, "dev")) return false
+            // Wait for Lumen to be up (the splash and intro take a moment).
+            var waited = 0
+            while (ecp.activeScreen(ip) != Screen.Lumen && waited < 8000) { delay(300); waited += 300 }
+            delay(1200)
+        }
+        return ecp.input(ip, mapOf("game" to id))
+    }
+
     /**
      * Spec 15.6 + 7.1: every phone exchange also shows on the TV. Lumen opens its Zeus panel for 8 s.
      * If Lumen isn't on screen the TV ignores /input, which is fine.
      */
-    suspend fun mirrorToTv(user: String, reply: String, receipts: List<String>) {
+    suspend fun mirrorToTv(user: String, reply: String, receipts: List<String>, quiet: Boolean = false) {
         val ip = Lumen.ip() ?: return
         val json = JSONObject().put("user", user.take(300)).put("reply", reply.take(500)).put("receipts", JSONArray(receipts.take(4)))
+            .put("quiet", quiet)
         Lumen.ecp.input(ip, mapOf("zeus" to json.toString()))
     }
 }

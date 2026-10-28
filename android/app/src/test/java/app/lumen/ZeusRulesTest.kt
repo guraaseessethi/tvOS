@@ -101,4 +101,9 @@ class ZeusRulesTest {
     @Test fun brokenJsonFallsBackToText() {
         assertEquals("{\"reply\": \"Opening", ZeusRules.parse("{\"reply\": \"Opening", apps).reply)
     }
+
+    @Test fun keepsKnownGamesOnly() {
+        val a = clean("""{"reply":"x","actions":[{"type":"start_game","game":"dog"},{"type":"start_game","game":"chess"}],"chips":[]}""")
+        assertEquals(listOf(Action("start_game", game = "dog")), a.actions)
+    }
 }

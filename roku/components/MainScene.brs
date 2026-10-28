@@ -319,6 +319,8 @@ sub runZeusActions(actions as object)
             ecp({ kind: "sleep", minutes: 0 })
         else if t = "show_message"
             m.toast.message = a.text
+        else if t = "start_game" and a.game <> invalid
+            playGame(a.game)
         end if
     end for
 end sub
@@ -478,7 +480,8 @@ sub onInput()
         if z <> invalid
             if z.user <> invalid and z.user <> "" then m.zeus.callFunc("addMessage", "user", z.user)
             if z.reply <> invalid and z.reply <> "" then m.zeus.callFunc("addMessage", "zeus", z.reply)
-            if m.overlay = invalid
+            ' quiet: the exchange started a game, so don't cover it with the panel.
+            if m.overlay = invalid and z.quiet <> true
                 openZeus()
                 m.zeusAuto = true
                 m.zeusAutoTimer.control = "start"
@@ -487,6 +490,8 @@ sub onInput()
             end if
         end if
     end if
+    ' The phone's Games tab (or Zeus) starts a game: focus the games card and begin a run.
+    if args.game <> invalid then playGame(args.game)
     ' The sleep timer lives on the phone; it tells Lumen whenever it changes (spec 15.6 handoff).
     if args.sleep <> invalid
         mins = args.sleep.ToInt()
@@ -505,6 +510,15 @@ sub onInput()
     m.launch.iconBase = url
     m.hello.bridge = url
     loadApps()
+end sub
+
+sub playGame(id as string)
+    if m.overlay = "zeus" then closeZeus()
+    if m.overlay <> invalid then return
+    m.zeusAuto = false
+    m.zone = "games"
+    applyFocus()
+    m.gamesCard.callFunc("startGame", id)
 end sub
 
 sub onZeusAutoClose()

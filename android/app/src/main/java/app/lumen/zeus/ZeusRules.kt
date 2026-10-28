@@ -44,6 +44,7 @@ object ZeusRules {
                 "set_sleep_timer" -> if (minutes in 5..240) out += Action("set_sleep_timer", minutes = minutes)
                 "cancel_sleep_timer" -> out += Action("cancel_sleep_timer")
                 "open_lumen" -> out += Action("open_lumen")
+                "start_game" -> a.optString("game").takeIf { it in Zeus.GAMES }?.let { out += Action("start_game", game = it) }
                 "show_message" -> a.optString("text").takeIf { it.isNotBlank() }?.let { out += Action("show_message", text = it.take(80)) }
             }
         }

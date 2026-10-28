@@ -14,6 +14,7 @@ data class Action(
     val theme: String? = null,
     val minutes: Int? = null,
     val text: String? = null,
+    val game: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("type", type)
@@ -25,6 +26,7 @@ data class Action(
         theme?.let { put("theme", it) }
         minutes?.let { put("minutes", it) }
         text?.let { put("text", it) }
+        game?.let { put("game", it) }
     }
 }
 
@@ -42,7 +44,14 @@ object Zeus {
     val KEYS = listOf("VolumeUp", "VolumeDown", "VolumeMute", "Play", "Rev", "Fwd", "Home", "Back", "InstantReplay")
     val ACTION_TYPES = listOf(
         "launch_app", "switch_input", "keypress", "power", "set_theme", "clear_theme_override",
-        "set_sleep_timer", "cancel_sleep_timer", "open_lumen", "show_message",
+        "set_sleep_timer", "cancel_sleep_timer", "open_lumen", "show_message", "start_game",
     )
-    val DEFAULT_CHIPS = listOf("Paint me something sunny", "What should I watch?", "Sleep in 30 min")
+    /** The TV's games (GameKit ids). */
+    val GAMES = listOf("bird", "dog", "catch")
+
+    /** Answer to "what can you do?" (owner request). */
+    val ABILITIES = "I can open any app or HDMI input, turn the volume up or down, mute, play or pause, " +
+        "turn the TV on or off, set a sleep timer, repaint the screen with a different painting, " +
+        "and start Flutter, Pup Run or Star Catcher on the TV. Ask me here or on the TV."
+    val DEFAULT_CHIPS = listOf("What can you do?", "Paint me something sunny", "Sleep in 30 min")
 }

@@ -3,9 +3,11 @@ package app.lumen
 import app.lumen.ecp.RokuApp
 import app.lumen.zeus.Action
 import app.lumen.zeus.LocalIntents
+import app.lumen.zeus.Zeus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Spec 9.3: obvious commands run on the phone without the network. */
@@ -90,5 +92,25 @@ class LocalIntentsTest {
         assertNull(LocalIntents.match("what should I watch tonight?", apps, names))
         assertNull(LocalIntents.match("paint me something sunny", apps, names))
         assertNull(LocalIntents.match("", apps, names))
+    }
+
+    @Test fun explainsWhatZeusCanDo() {
+        listOf("what can you do", "What can you do?", "help", "what can I ask").forEach {
+            val a = LocalIntents.match(it, apps, names)
+            assertNotNull(it, a)
+            assertEquals(Zeus.ABILITIES, a!!.reply)
+            assertTrue(a.actions.isEmpty())
+        }
+    }
+
+    @Test fun startsGames() {
+        assertEquals(Action("start_game", game = "bird"), actions("play flutter").single())
+        assertEquals(Action("start_game", game = "dog"), actions("let's play pup run").single())
+        assertEquals(Action("start_game", game = "catch"), actions("start star catcher").single())
+        assertEquals(Action("start_game", game = "bird"), actions("play a game").single())
+    }
+
+    @Test fun playAloneStillPauses() {
+        assertEquals("Play", actions("play").single().key)
     }
 }
