@@ -146,8 +146,8 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
             Toggle("Spoken replies", "Zeus says his answers out loud.", s.spokenReplies) { scope.launch { Lumen.prefs.setSpokenReplies(it) } }
             Divider()
             Toggle(
-                "Zeus answers on the TV",
-                "Zeus speaks through the TV and his replies show there. The phone stays quiet. Turn off to hear him on the phone instead.",
+                "Zeus talks on the TV",
+                "Off: Zeus talks on the phone and the TV shows the chat. On: his voice plays through the TV speakers instead.",
                 s.replyOnTv,
             ) { scope.launch { Lumen.prefs.setReplyOnTv(it) } }
             Divider()

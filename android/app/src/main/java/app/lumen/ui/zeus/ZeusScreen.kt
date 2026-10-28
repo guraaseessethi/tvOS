@@ -119,7 +119,7 @@ fun ZeusScreen(painting: Painting, listenRequest: Int, command: String?, onComma
             if (r.answer.chips.isNotEmpty()) chips = r.answer.chips
             transcript = ""
             phase = Phase.Reply
-            // Owner choice: with "Zeus answers on the TV" on, the phone never talks; the TV does.
+            // Owner choice: Zeus talks on the phone; the TV shows the chat. ("Zeus talks on the TV" swaps that.)
             val st = Lumen.settings.value
             if (st.spokenReplies && !st.replyOnTv) voice.say(r.answer.reply, st.voiceName)
         }

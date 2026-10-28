@@ -6,6 +6,8 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.Locale
@@ -48,11 +50,21 @@ object VoiceStudio {
         t.setPitch(0.96f)
     }
 
+    /** Says [text] on the phone, from anywhere (e.g. a question asked on the TV while the app is closed). */
+    suspend fun speak(text: String, preferredVoice: String) {
+        val t = tts ?: return
+        if (withTimeoutOrNull(3000) { ready.await() } != true) return
+        choose(t, preferredVoice)
+        t.speak(spoken(text), TextToSpeech.QUEUE_FLUSH, null, "zeus-phone")
+    }
+
     /**
      * Renders [text] for the TV and returns the clip's file name (an .m4a, or the .wav if AAC
      * encoding isn't possible), or null if speech isn't available.
      */
-    suspend fun render(text: String, preferredVoice: String): String? {
+    suspend fun render(text: String, preferredVoice: String): String? = withContext(Dispatchers.IO) { renderNow(text, preferredVoice) }
+
+    private suspend fun renderNow(text: String, preferredVoice: String): String? {
         val t = tts ?: return null
         if (withTimeoutOrNull(3000) { ready.await() } != true) return null
         choose(t, preferredVoice)

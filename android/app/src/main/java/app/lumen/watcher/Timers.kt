@@ -130,9 +130,11 @@ object Timers {
             // Say it on the TV too, in Zeus's voice (Lumen shows the toast and plays the clip).
             val ip = Lumen.ip() ?: return@launch
             val ring = JSONObject().put("kind", kind).put("text", text)
-            val clip = VoiceStudio.render(text, s.voiceName)
-            val base = Lumen.bridgeUrl(ip)
-            if (clip != null && base != null) ring.put("voice", "$base/voice/$clip")
+            if (s.replyOnTv) {
+                val clip = VoiceStudio.render(text, s.voiceName)
+                val base = Lumen.bridgeUrl(ip)
+                if (clip != null && base != null) ring.put("voice", "$base/voice/$clip")
+            }
             Lumen.ecp.input(ip, mapOf("ring" to ring.toString()))
             pushToTv()
         }

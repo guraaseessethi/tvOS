@@ -23,7 +23,8 @@ data class Settings(
     val autoOpen: Boolean = true,
     val spokenReplies: Boolean = true,
     val heyZeus: Boolean = false,
-    val replyOnTv: Boolean = true,
+    /** Owner choice (28 Oct): Zeus talks on the phone; the TV only shows the chat. */
+    val replyOnTv: Boolean = false,
     val voiceName: String = "",
     val lockRemote: Boolean = true,
     val followWeather: Boolean = true,
@@ -55,7 +56,7 @@ class Prefs(private val context: Context) {
         val autoOpen = booleanPreferencesKey("autoOpen")
         val spokenReplies = booleanPreferencesKey("spokenReplies")
         val heyZeus = booleanPreferencesKey("heyZeus")
-        val replyOnTv = booleanPreferencesKey("replyOnTv")
+        val replyOnTv = booleanPreferencesKey("voiceOnTv")
         val voiceName = stringPreferencesKey("voiceName")
         val lockRemote = booleanPreferencesKey("lockRemote")
         val followWeather = booleanPreferencesKey("followWeather")

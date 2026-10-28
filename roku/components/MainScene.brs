@@ -515,7 +515,15 @@ sub onInput()
         z = ParseJson(args.zeus)
         if z <> invalid
             if z.user <> invalid and z.user <> "" then m.zeus.callFunc("addMessage", "user", z.user)
-            if z.reply <> invalid and z.reply <> "" then m.zeus.callFunc("addMessage", "zeus", z.reply)
+            if z.reply <> invalid and z.reply <> ""
+                txt = z.reply
+                if z.receipts <> invalid
+                    for each rc in z.receipts
+                        txt = txt + Chr(10) + "· " + rc
+                    end for
+                end if
+                m.zeus.callFunc("addMessage", "zeus", txt)
+            end if
             if z.voice <> invalid then sayOnTv(z.voice)
             ' quiet: the exchange started a game, so don't cover it with the panel.
             if m.overlay = invalid and z.quiet <> true

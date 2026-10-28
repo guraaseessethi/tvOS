@@ -3,6 +3,8 @@ package app.lumen.zeus
 import android.content.Context
 import app.lumen.Lumen
 import app.lumen.ecp.Screen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.time.OffsetDateTime
 
@@ -11,7 +13,9 @@ object ZeusSession {
     /** spokeOnTv: the TV is saying the reply, so the phone stays quiet. */
     data class Result(val user: String, val answer: Answer, val receipts: List<String>, val spokeOnTv: Boolean = false)
 
-    suspend fun send(context: Context, text: String): Result {
+    suspend fun send(context: Context, text: String): Result = withContext(Dispatchers.Default) { exchange(context, text) }
+
+    private suspend fun exchange(context: Context, text: String): Result {
         if (Lumen.tv.value.apps.isEmpty()) Lumen.refreshTv()
         val tv = Lumen.tv.value
         val s = Lumen.settings.value
@@ -31,8 +35,8 @@ object ZeusSession {
         val receipts = ActionRunner.run(answer.actions)
         ZeusLog.add(ZeusLog.Exchange(text, answer.reply, receipts, fromTv = false))
         val quiet = answer.actions.any { it.type == "start_game" }
-        // Owner choice: Zeus answers on the TV (screen + speakers) whenever Lumen is showing.
-        // The phone stays silent either way while this is on.
+        // The TV always shows the chat. Its speakers only get Zeus's voice if "Zeus talks on the TV"
+        // is on; by default (owner choice) he talks on the phone.
         val ip = Lumen.ip()
         val onTv = s.replyOnTv && ip != null && Lumen.ecp.activeScreen(ip) == Screen.Lumen
         var voice: String? = null

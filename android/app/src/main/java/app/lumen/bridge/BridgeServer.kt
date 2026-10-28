@@ -128,12 +128,15 @@ class BridgeServer(private val context: Context, port: Int, private val memories
         ActionRunner.run(onPhone)
         val answerForTv = answer.copy(actions = onTv)
         ZeusLog.add(ZeusLog.Exchange(message, answer.reply, answer.actions.map { describe(it, apps) }, fromTv = true))
-        // Zeus answers out loud on the TV, in the phone's natural voice.
+        // Zeus talks on the phone by default; on the TV only if that's switched on in Setup.
         val out = answerForTv.toJson()
-        if (Lumen.settings.value.spokenReplies) {
-            val clip = withTimeoutOrNull(5_000) { VoiceStudio.render(answer.reply, Lumen.settings.value.voiceName) }
+        val st = Lumen.settings.value
+        if (st.spokenReplies && st.replyOnTv) {
+            val clip = withTimeoutOrNull(5_000) { VoiceStudio.render(answer.reply, st.voiceName) }
             val base = Lumen.ip()?.let { Lumen.bridgeUrl(it) }
             if (clip != null && base != null) out.put("voice", "$base/voice/$clip")
+        } else if (st.spokenReplies) {
+            VoiceStudio.speak(answer.reply, st.voiceName)
         }
         return out
     }

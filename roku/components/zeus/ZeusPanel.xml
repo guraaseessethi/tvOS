@@ -131,7 +131,7 @@
   ' role: "user" | "zeus". Keeps the last six for history; shows what fits.
   function addMessage(role as string, text as string) as boolean
       m.messages.Push({ role: role, text: text })
-      while m.messages.Count() > 6
+      while m.messages.Count() > 10
           m.messages.Shift()
       end while
       renderChat()
@@ -146,6 +146,8 @@
       return out
   end function
 
+  ' Bottom-aligned chat, newest last. Bubble heights come from wrapping the words ourselves
+  ' (Label.boundingRect isn't reliable for wrapped text here), so whole messages show.
   sub renderChat()
       if m.chat = invalid then return
       m.chat.removeChildrenIndex(m.chat.getChildCount(), 0)
@@ -154,20 +156,22 @@
           items.Push(msg)
       end for
       if m.top.thinking then items.Push({ role: "zeus", text: "…" })
+      maxW = 500
+      lineH = 34
       y = 740
       for i = items.Count() - 1 to 0 step -1
           it = items[i]
-          ' Labels don't report wrapped height reliably here; estimate ~30 characters a line.
-          lines = Int((Len(it.text) + 29) / 30)
-          if lines < 1 then lines = 1
-          if lines > 5 then lines = 5
-          h = lines * 36 + 40
-          w = 470
-          if lines = 1 then w = Len(it.text) * 14 + 52
-          if w > 470 then w = 470
+          wrap = wrapText(it.text, maxW - 44)
+          lines = wrap.lines
+          if lines > 9 then lines = 9
+          h = lines * lineH + 32
+          w = wrap.width + 44
+          if lines > 1 then w = maxW
           if w < 90 then w = 90
-          y = y - h - 14
-          if y < 150 - h then exit for
+          if w > maxW then w = maxW
+          y = y - h - 12
+          ' The oldest message that only partly fits is skipped rather than cut in half.
+          if y < 150 then exit for
           g = m.chat.createChild("Group")
           if it.role = "user" then x = m.W - 40 - w else x = 40
           g.translation = [x, y]
@@ -176,13 +180,14 @@
           b.width = w
           b.height = h
           l = g.createChild("Label")
-          l.font = LumenFont("Manrope-SemiBold", 26)
+          l.font = LumenFont("Manrope-SemiBold", 24)
           l.text = it.text
-          l.translation = [24, 20]
-          l.width = w - 48
-          l.height = h - 40
+          l.translation = [22, 16]
+          l.width = w - 44
+          l.height = h - 32
           l.wrap = true
-          l.maxLines = 5
+          l.maxLines = 9
+          l.lineSpacing = 4
           if it.role = "user"
               b.blendColor = m.th.ink
               l.color = m.th.white
@@ -192,6 +197,54 @@
           end if
       end for
   end sub
+
+  ' Greedy word wrap with an estimated Manrope 24 width per character.
+  ' Returns { lines, width } (width = widest line, for one-line bubbles).
+  function wrapText(text as string, maxW as integer) as object
+      lines = 0
+      widest = 0
+      for each para in text.Split(Chr(10))
+          lineW = 0
+          lines = lines + 1
+          for each word in para.Split(" ")
+              ww = textWidth(word)
+              space = 0
+              if lineW > 0 then space = 7
+              if lineW > 0 and lineW + space + ww > maxW
+                  if lineW > widest then widest = lineW
+                  lines = lines + 1
+                  lineW = ww
+              else
+                  lineW = lineW + space + ww
+              end if
+              ' A single word longer than the line wraps by itself.
+              while lineW > maxW
+                  lines = lines + 1
+                  lineW = lineW - maxW
+                  widest = maxW
+              end while
+          end for
+          if lineW > widest then widest = lineW
+      end for
+      return { lines: lines, width: widest }
+  end function
+
+  function textWidth(word as string) as integer
+      w = 0
+      for i = 1 to Len(word)
+          c = Mid(word, i, 1)
+          if InStr(1, "il.,:;'!|", c) > 0
+              w = w + 6
+          else if InStr(1, "mwMW@", c) > 0
+              w = w + 20
+          else if c >= "A" and c <= "Z"
+              w = w + 16
+          else
+              w = w + 13
+          end if
+      end for
+      return w
+  end function
 
   function setChips(list as object) as boolean
       m.chipRow.removeChildrenIndex(m.chipRow.getChildCount(), 0)
