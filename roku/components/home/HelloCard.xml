@@ -118,9 +118,25 @@
           ip = addrs[k]
       end for
       if ip = "" then return ""
-      ut = CreateObject("roUrlTransfer")
-      data = "lumen://connect?ip=" + ip + "&name=" + ut.Escape(di.GetFriendlyName())
-      return "https://api.qrserver.com/v1/create-qr-code/?size=304x304&margin=8&format=png&data=" + ut.Escape(data)
+      data = "lumen://connect?ip=" + ip + "&name=" + urlEscape(di.GetFriendlyName())
+      return "https://api.qrserver.com/v1/create-qr-code/?size=304x304&margin=8&format=png&data=" + urlEscape(data)
+  end function
+
+  ' Percent-encoding by hand: roUrlTransfer (which has Escape) isn't allowed on the render thread.
+  function urlEscape(s as string) as string
+      ba = CreateObject("roByteArray")
+      ba.FromAsciiString(s)
+      out = ""
+      for each b in ba
+          if (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122) or b = 45 or b = 46 or b = 95 or b = 126
+              out = out + Chr(b)
+          else
+              h = UCase(StrI(b, 16))
+              if Len(h) = 1 then h = "0" + h
+              out = out + "%" + h
+          end if
+      end for
+      return out
   end function
 
   ' Picked fresh every launch; the time of day decides the pool.
