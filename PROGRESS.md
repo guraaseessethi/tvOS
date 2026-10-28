@@ -62,7 +62,7 @@
 ### Follow-up (28 Oct, owner feedback)
 - **Zeus failing:**
   - Gemini 2.5's thinking was using up the 400-token budget, so answers came back empty. The budget is now 2048.
-  - Models fall back in order: 2.5 Flash → 2.5 Flash-Lite → flash-latest → 2.0 Flash.
+  - Models fall back in order: 3.8 Flash → flash-latest → 3.5 Flash-Lite → 3 Flash preview → 2.5 Flash. Google only serves 2.5 to projects that used it before, so a new Firebase project needs the 3.x models.
   - Answers wrapped in ```json fences or plain text are accepted.
   - **Setup → Check Zeus** shows the real error.
 - **Zeus on both sides:**

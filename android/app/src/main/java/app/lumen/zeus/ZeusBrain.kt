@@ -20,12 +20,14 @@ import org.json.JSONObject
  * Zeus's brain (spec 9): Gemini through Firebase AI Logic, so no API key ships in the APK.
  * Both the phone (voice, typing) and the TV (through the bridge's POST /zeus) ask here.
  *
- * Gemini 2.5 "thinks" before answering and that thinking counts against the output budget, so
- * the budget is generous. If a model isn't available on the project, the next one is tried.
+ * Gemini "thinks" before answering and that thinking counts against the output budget, so the
+ * budget is generous. If a model isn't available on the project, the next one is tried. Google
+ * keeps 2.5 only for projects that already used it (release notes, Sept 2026), so new projects
+ * start on the 3.x models; "flash-latest" follows whatever Google's current Flash is.
  */
 object ZeusBrain {
     private const val TAG = "Zeus"
-    private val MODELS = listOf("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.0-flash")
+    private val MODELS = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash-lite", "gemini-3-flash-preview", "gemini-2.5-flash")
 
     /** The last failure in plain words, shown in Setup > Check Zeus. */
     @Volatile var lastError: String = ""
@@ -86,7 +88,7 @@ object ZeusBrain {
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
                 if (structured) responseSchema = schema
-                maxOutputTokens = 2048
+                maxOutputTokens = 4096
                 temperature = 0.6f
             },
             systemInstruction = content { text(SYSTEM) },
