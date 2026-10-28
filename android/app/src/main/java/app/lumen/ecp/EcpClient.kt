@@ -79,6 +79,16 @@ class EcpClient {
     suspend fun literal(ip: String, ch: Char) =
         call(ip, "POST", "/keypress/Lit_" + URLEncoder.encode(ch.toString(), "UTF-8").replace("+", "%20")).ok
 
+    /**
+     * Roku search (ECP /search/browse). With a provider (app id) and launch=true, an app that supports
+     * Roku search opens the title directly; otherwise Roku's search results across all apps show.
+     */
+    suspend fun search(ip: String, keyword: String, appId: String?): Boolean {
+        val params = linkedMapOf("keyword" to keyword)
+        if (appId != null) { params["provider-id"] = appId; params["launch"] = "true" }
+        return call(ip, "POST", "/search/browse" + query(params)).ok
+    }
+
     /** POST /input?k=v to Lumen while it's open (spec 15.6). */
     suspend fun input(ip: String, params: Map<String, String>) = call(ip, "POST", "/input" + query(params)).ok
 }

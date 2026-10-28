@@ -64,6 +64,7 @@ import app.lumen.ui.onboarding.askBatteryExemption
 import app.lumen.ui.onboarding.batteryExempt
 import app.lumen.ui.theme.Ink
 import app.lumen.ui.theme.T
+import app.lumen.watcher.Timers
 import app.lumen.zeus.Voice
 import app.lumen.zeus.VoiceStudio
 import app.lumen.zeus.ZeusBrain
@@ -146,7 +147,7 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
             Divider()
             Toggle(
                 "Zeus answers on the TV",
-                "Replies show and play on the TV while Lumen is open. The phone only answers when Lumen isn't on screen.",
+                "Zeus speaks through the TV and his replies show there. The phone stays quiet. Turn off to hear him on the phone instead.",
                 s.replyOnTv,
             ) { scope.launch { Lumen.prefs.setReplyOnTv(it) } }
             Divider()
@@ -209,6 +210,22 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
                         style = T.ui(15, FontWeight.Bold, Ink.ink), modifier = Modifier.weight(1f),
                     )
                     Text("Cancel", style = T.ui(15, FontWeight.ExtraBold, Ink.ink), modifier = Modifier.clickable { scope.launch { Lumen.setSleep(0) } }.padding(6.dp))
+                }
+            }
+
+            // Zeus's timer and alarm (also shown on the TV beside Ask Zeus).
+            val now = System.currentTimeMillis()
+            listOfNotNull(
+                if (s.timerAt > now) Timers.TIMER to "Timer: rings at " + DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date(s.timerAt)) else null,
+                if (s.alarmAt > now) Timers.ALARM to "Alarm: " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(s.alarmAt)) else null,
+            ).forEach { (kind, label) ->
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White).padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(label, style = T.ui(15, FontWeight.Bold, Ink.ink), modifier = Modifier.weight(1f))
+                    Text("Cancel", style = T.ui(15, FontWeight.ExtraBold, Ink.ink), modifier = Modifier.clickable { scope.launch { Timers.cancel(context, kind) } }.padding(6.dp))
                 }
             }
 

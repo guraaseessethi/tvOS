@@ -15,6 +15,7 @@ class BootReceiver : BroadcastReceiver() {
             try {
                 val s = Lumen.loadedSettings()
                 if (s.onboarded && s.hasTv) TvWatcherService.start(context)
+                Timers.restore(context)
             } finally {
                 done.finish()
             }

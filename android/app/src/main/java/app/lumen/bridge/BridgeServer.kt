@@ -5,7 +5,9 @@ import app.lumen.Lumen
 import app.lumen.games.Game
 import app.lumen.games.Leaderboard
 import app.lumen.ecp.RokuApp
+import app.lumen.watcher.Timers
 import app.lumen.zeus.Action
+import app.lumen.zeus.ActionRunner
 import app.lumen.zeus.Answer
 import app.lumen.zeus.LocalIntents
 import app.lumen.zeus.VoiceStudio
@@ -62,9 +64,10 @@ class BridgeServer(private val context: Context, port: Int, private val memories
                     else reply(200, "image/jpeg", f.readBytes())
                 }
                 path == "/sleep" -> return json(JSONObject().put("minutes", Lumen.sleepMinutesLeft()))
+                path == "/timers" -> return json(Timers.statusJson())
                 path.startsWith("/voice/") -> {
                     val f = VoiceStudio.file(path.removePrefix("/voice/")) ?: return reply(404)
-                    return reply(200, "audio/wav", f.readBytes())
+                    return reply(200, if (f.name.endsWith(".m4a")) "audio/mp4" else "audio/wav", f.readBytes())
                 }
                 path.startsWith("/leaderboard/") -> {
                     val game = Game.of(path.removePrefix("/leaderboard/")) ?: return reply(404)
@@ -84,6 +87,13 @@ class BridgeServer(private val context: Context, port: Int, private val memories
                 path.startsWith("/keypress/") -> {
                     if (path.removePrefix("/keypress/") !in KEYS) return reply(404)
                     return reply(ecp.call(ip, "POST", path).code)
+                }
+                path == "/search" -> {
+                    val b = body(s)
+                    val q = b.optString("query").trim().take(80)
+                    if (q.isEmpty()) return reply(400)
+                    val app = b.optString("appId").takeIf { APP_ID.matches(it) && it != "dev" }
+                    return reply(if (ecp.search(ip, q, app)) 200 else 502)
                 }
                 path.startsWith("/sleep/") -> {
                     val m = path.removePrefix("/sleep/").toIntOrNull() ?: return reply(404)
@@ -113,9 +123,13 @@ class BridgeServer(private val context: Context, port: Int, private val memories
             ?: withTimeoutOrNull(25_000) { ZeusBrain.ask(context, message, apps, ZeusLog.history(), facts) }
             ?: Answer("That took too long. Try again?", chips = listOf("Try again"))
         // The TV runs the actions itself; the phone keeps the conversation and shows it.
+        // Timers and alarms always live on the phone, so run those here; the TV runs everything else.
+        val (onPhone, onTv) = answer.actions.partition { it.type in setOf("set_timer", "cancel_timer", "set_alarm", "cancel_alarm") }
+        ActionRunner.run(onPhone)
+        val answerForTv = answer.copy(actions = onTv)
         ZeusLog.add(ZeusLog.Exchange(message, answer.reply, answer.actions.map { describe(it, apps) }, fromTv = true))
         // Zeus answers out loud on the TV, in the phone's natural voice.
-        val out = answer.toJson()
+        val out = answerForTv.toJson()
         if (Lumen.settings.value.spokenReplies) {
             val clip = withTimeoutOrNull(5_000) { VoiceStudio.render(answer.reply, Lumen.settings.value.voiceName) }
             val base = Lumen.ip()?.let { Lumen.bridgeUrl(it) }
@@ -132,6 +146,9 @@ class BridgeServer(private val context: Context, port: Int, private val memories
         "cancel_sleep_timer" -> "Sleep timer off"
         "power" -> if (a.state == "off") "TV turned off" else "TV turning on"
         "keypress" -> a.key ?: "Button"
+        "search" -> "Searched for ${a.query}"
+        "set_timer" -> "Timer: " + app.lumen.zeus.TimeRules.describe(a.seconds ?: 0)
+        "set_alarm" -> "Alarm " + (a.time ?: "")
         else -> a.type
     }
 

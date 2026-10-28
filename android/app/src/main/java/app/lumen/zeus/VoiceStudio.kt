@@ -27,13 +27,13 @@ object VoiceStudio {
         tts = TextToSpeech(context.applicationContext) { status -> ready.complete(status == TextToSpeech.SUCCESS) }
     }
 
-    /** English voices, best first: highest quality, then ones that work offline, then en-CA/US/GB. */
+    /** English voices, best first: on-device ones (reliable to render), highest quality, then en-CA/US/GB. */
     fun voices(): List<Voice> {
         val all = runCatching { tts?.voices?.toList() }.getOrNull().orEmpty()
         return all.filter { it.locale.language == "en" && !it.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) }
             .sortedWith(
-                compareByDescending<Voice> { it.quality }
-                    .thenBy { it.isNetworkConnectionRequired }
+                compareBy<Voice> { it.isNetworkConnectionRequired }
+                    .thenByDescending { it.quality }
                     .thenBy { listOf("CA", "US", "GB", "AU").indexOf(it.locale.country).let { i -> if (i < 0) 9 else i } }
                     .thenBy { it.name },
             )
@@ -48,7 +48,10 @@ object VoiceStudio {
         t.setPitch(0.96f)
     }
 
-    /** Renders [text] to a WAV and returns its file name, or null if speech isn't available. */
+    /**
+     * Renders [text] for the TV and returns the clip's file name (an .m4a, or the .wav if AAC
+     * encoding isn't possible), or null if speech isn't available.
+     */
     suspend fun render(text: String, preferredVoice: String): String? {
         val t = tts ?: return null
         if (withTimeoutOrNull(3000) { ready.await() } != true) return null
@@ -65,12 +68,15 @@ object VoiceStudio {
         if (t.synthesizeToFile(spoken(text), Bundle(), file, name) != TextToSpeech.SUCCESS) return null
         val ok = withTimeoutOrNull(6000) { done.await() } == true && file.length() > 1000
         // Keep only the last few clips.
-        dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(6)?.forEach { it.delete() }
-        return if (ok) name else null
+        dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(10)?.forEach { it.delete() }
+        if (!ok) return null
+        // Roku plays AAC (.m4a) far more reliably than WAV.
+        val m4a = File(dir, name.removeSuffix(".wav") + ".m4a")
+        return if (AacEncoder.wavToM4a(file, m4a)) m4a.name else name
     }
 
     fun file(name: String): File? =
-        if (::dir.isInitialized && Regex("^z\\d{6,20}\\.wav$").matches(name)) File(dir, name).takeIf { it.isFile } else null
+        if (::dir.isInitialized && Regex("^z\\d{6,20}\\.(wav|m4a)$").matches(name)) File(dir, name).takeIf { it.isFile } else null
 
     /** Small tweaks so speech flows: "10:52" reads as a time, "TV" isn't spelled oddly, etc. */
     fun spoken(text: String): String = text

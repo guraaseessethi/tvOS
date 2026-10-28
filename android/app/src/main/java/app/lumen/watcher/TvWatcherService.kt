@@ -168,6 +168,7 @@ class TvWatcherService : Service() {
         if (s.followWeather || s.overrideUntil > System.currentTimeMillis()) {
             params["theme"] = JSONObject().put("theme", Lumen.painting.value.key).toString()
         }
+        params["timers"] = Timers.statusJson().toString()
         return Lumen.ecp.input(ip, params)
     }
 

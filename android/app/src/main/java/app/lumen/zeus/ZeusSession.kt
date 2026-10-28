@@ -22,6 +22,8 @@ object ZeusSession {
                 .put("painting", Lumen.painting.value.key)
                 .put("tv", JSONObject().put("power", tv.info?.powerMode ?: "unknown").put("lumenOpen", tv.screen == Screen.Lumen))
                 .put("sleepTimerMinutesLeft", Lumen.sleepMinutesLeft())
+                .put("timerSecondsLeft", if (s.timerAt > System.currentTimeMillis()) (s.timerAt - System.currentTimeMillis()) / 1000 else 0)
+                .put("alarmAt", if (s.alarmAt > System.currentTimeMillis()) java.time.Instant.ofEpochMilli(s.alarmAt).toString() else "none")
                 .put("inputNames", JSONObject(s.inputNames as Map<*, *>))
             Lumen.weather.value?.let { facts.put("weather", it.line(s.fahrenheit)) }
             ZeusBrain.ask(context, text, tv.apps, ZeusLog.history(), facts)
@@ -30,7 +32,7 @@ object ZeusSession {
         ZeusLog.add(ZeusLog.Exchange(text, answer.reply, receipts, fromTv = false))
         val quiet = answer.actions.any { it.type == "start_game" }
         // Owner choice: Zeus answers on the TV (screen + speakers) whenever Lumen is showing.
-        // The phone only speaks when Lumen isn't on screen (e.g. you're inside Netflix).
+        // The phone stays silent either way while this is on.
         val ip = Lumen.ip()
         val onTv = s.replyOnTv && ip != null && Lumen.ecp.activeScreen(ip) == Screen.Lumen
         var voice: String? = null

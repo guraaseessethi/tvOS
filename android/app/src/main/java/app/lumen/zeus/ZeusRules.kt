@@ -44,6 +44,15 @@ object ZeusRules {
                 "set_sleep_timer" -> if (minutes in 5..240) out += Action("set_sleep_timer", minutes = minutes)
                 "cancel_sleep_timer" -> out += Action("cancel_sleep_timer")
                 "open_lumen" -> out += Action("open_lumen")
+                "set_timer" -> a.optInt("seconds", -1).takeIf { it in 5..86_400 }?.let { out += Action("set_timer", seconds = it) }
+                "cancel_timer" -> out += Action("cancel_timer")
+                "set_alarm" -> a.optString("time").takeIf { Regex("^([01]?\\d|2[0-3]):[0-5]\\d$").matches(it) }
+                    ?.let { out += Action("set_alarm", time = it.padStart(5, '0')) }
+                "cancel_alarm" -> out += Action("cancel_alarm")
+                "search" -> a.optString("query").trim().takeIf { it.isNotEmpty() }?.let { q ->
+                    val app = a.optString("appId").takeIf { it in appIds }
+                    out += Action("search", query = q.take(80), appId = app)
+                }
                 "start_game" -> a.optString("game").takeIf { it in Zeus.GAMES }?.let { out += Action("start_game", game = it) }
                 "show_message" -> a.optString("text").takeIf { it.isNotBlank() }?.let { out += Action("show_message", text = it.take(80)) }
             }

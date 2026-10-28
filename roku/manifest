@@ -1,7 +1,7 @@
 title=Lumen
 major_version=1
 minor_version=0
-build_version=34
+build_version=35
 ui_resolutions=fhd
 mm_icon_focus_fhd=pkg:/images/brand/poster_fhd_540x405.png
 mm_icon_focus_hd=pkg:/images/brand/poster_hd_290x218.png

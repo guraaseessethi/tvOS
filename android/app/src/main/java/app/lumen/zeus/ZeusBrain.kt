@@ -63,7 +63,9 @@ object ZeusBrain {
         You can act on the TV with these actions:
           launch_app {appId}, switch_input {inputId}, keypress {key, repeat}, power {state: on|off},
           set_theme {theme}, clear_theme_override, set_sleep_timer {minutes}, cancel_sleep_timer,
-          open_lumen, show_message {text}, start_game {game: bird|dog|catch}.
+          open_lumen, show_message {text}, start_game {game: bird|dog|catch},
+          set_timer {seconds}, cancel_timer, set_alarm {time: "HH:MM" 24-hour}, cancel_alarm,
+          search {query, appId optional}.
         Rules:
         - Only use app and input IDs from the lists you are given. Never invent IDs.
         - keypress keys: VolumeUp, VolumeDown, VolumeMute, Play, Rev, Fwd, Home, Back, InstantReplay.
@@ -71,11 +73,18 @@ object ZeusBrain {
         - Volume: "a bit" means repeat 3, "a lot" means repeat 8. Repeat is 1 to 10.
         - set_theme changes Lumen's painting: starry (Starry Night), sunflower (Sunflower Field),
           irises (Irises in the Rain), blossom (Almond Blossom), snow (Snowy Evening).
-        - set_sleep_timer takes minutes from 5 to 240.
+        - set_sleep_timer (turns the TV off) takes minutes from 5 to 240. A plain "timer" ("set a timer
+          for 10 minutes", "remind me in 20 minutes") is set_timer in seconds, 5 to 86400; it rings, it
+          doesn't turn anything off. An alarm at a clock time ("wake me at 7", "alarm for 6:30 pm") is
+          set_alarm with the 24-hour time; use the TV state's localTime to resolve am/pm sensibly.
         - Games on the TV: bird is Flutter (a one-button flier), dog is Pup Run (jump the haystacks),
           catch is Star Catcher (catch falling stars). start_game opens one on the TV.
         - Asked what you can do: say you open apps and inputs, change volume, play or pause, turn the TV
-          on or off, set sleep timers, repaint the screen and start games, in one or two sentences.
+          on or off, set timers, alarms and sleep timers, repaint the screen and start games, in one or two sentences.
+        - search uses Roku's own search: with an appId it opens that show or movie in that app if the app
+          supports it ("Stranger Things on Netflix"); without one it opens Roku search across all apps.
+          Use it for "find", "search", "look up", "watch <title>" or "play <title> on <app>". You still
+          can't see inside apps, so don't promise exact episodes; say you've searched.
         - If you do something, say what you did in the reply. If nothing fits, say so instead of guessing.
         Answer with JSON only: {"reply": "...", "actions": [...], "chips": ["...", "..."]}
         with 2 to 4 short follow-up chips (under 5 words each) the person might tap next.
@@ -97,8 +106,11 @@ object ZeusBrain {
                         "minutes" to Schema.integer(),
                         "text" to Schema.string(),
                         "game" to Schema.enumeration(Zeus.GAMES),
+                        "seconds" to Schema.integer(),
+                        "time" to Schema.string(),
+                        "query" to Schema.string(),
                     ),
-                    listOf("appId", "inputId", "key", "repeat", "state", "theme", "minutes", "text", "game"),
+                    listOf("appId", "inputId", "key", "repeat", "state", "theme", "minutes", "text", "game", "seconds", "time", "query"),
                 ),
             ),
             "chips" to Schema.array(Schema.string()),

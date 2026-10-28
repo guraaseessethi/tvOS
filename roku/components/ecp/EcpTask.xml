@@ -63,6 +63,10 @@
           r = http("POST", "/sleep/" + req.minutes.ToStr())
           res.code = r.code
           res.ok = (r.code >= 200 and r.code < 300)
+      else if req.kind = "search"
+          r = http("POST", "/search", req.body)
+          res.code = r.code
+          res.ok = (r.code >= 200 and r.code < 300)
       else if req.kind = "score"
           r = http("POST", "/score", FormatJson({ game: req.game, points: req.points }))
           res.code = r.code

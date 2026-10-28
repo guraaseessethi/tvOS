@@ -36,6 +36,9 @@ data class Settings(
     val fahrenheit: Boolean = false,
     val pauseUntil: Long = 0,
     val sleepAt: Long = 0,
+    val timerAt: Long = 0,
+    val timerSeconds: Int = 0,
+    val alarmAt: Long = 0,
     val lastAutoOpen: String = "",
     val inputNames: Map<String, String> = emptyMap(),
 ) {
@@ -65,6 +68,9 @@ class Prefs(private val context: Context) {
         val fahrenheit = booleanPreferencesKey("fahrenheit")
         val pauseUntil = longPreferencesKey("pauseUntil")
         val sleepAt = longPreferencesKey("sleepAt")
+        val timerAt = longPreferencesKey("timerAt")
+        val timerSeconds = longPreferencesKey("timerSeconds")
+        val alarmAt = longPreferencesKey("alarmAt")
         val lastAutoOpen = stringPreferencesKey("lastAutoOpen")
         val inputNames = stringPreferencesKey("inputNames")
     }
@@ -98,6 +104,9 @@ class Prefs(private val context: Context) {
             fahrenheit = p[K.fahrenheit] ?: d.fahrenheit,
             pauseUntil = p[K.pauseUntil] ?: d.pauseUntil,
             sleepAt = p[K.sleepAt] ?: d.sleepAt,
+            timerAt = p[K.timerAt] ?: d.timerAt,
+            timerSeconds = (p[K.timerSeconds] ?: 0L).toInt(),
+            alarmAt = p[K.alarmAt] ?: d.alarmAt,
             lastAutoOpen = p[K.lastAutoOpen] ?: d.lastAutoOpen,
             inputNames = names,
         )
@@ -120,6 +129,8 @@ class Prefs(private val context: Context) {
     suspend fun setFahrenheit(v: Boolean) = context.store.edit { it[K.fahrenheit] = v }
     suspend fun setPauseUntil(v: Long) = context.store.edit { it[K.pauseUntil] = v }
     suspend fun setSleepAt(v: Long) = context.store.edit { it[K.sleepAt] = v }
+    suspend fun setTimer(at: Long, seconds: Int) = context.store.edit { it[K.timerAt] = at; it[K.timerSeconds] = seconds.toLong() }
+    suspend fun setAlarm(at: Long) = context.store.edit { it[K.alarmAt] = at }
     suspend fun setLastAutoOpen(v: String) = context.store.edit { it[K.lastAutoOpen] = v }
     suspend fun setInputName(id: String, name: String) = context.store.edit {
         val o = runCatching { JSONObject(it[K.inputNames] ?: "{}") }.getOrDefault(JSONObject())

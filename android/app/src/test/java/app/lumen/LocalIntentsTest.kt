@@ -113,4 +113,18 @@ class LocalIntentsTest {
     @Test fun playAloneStillPauses() {
         assertEquals("Play", actions("play").single().key)
     }
+
+    @Test fun timersAlarmsAndSearch() {
+        assertEquals(Action("set_timer", seconds = 600), actions("set a timer for 10 minutes").single())
+        assertEquals(Action("set_timer", seconds = 300), actions("5 minute timer").single())
+        assertEquals(Action("cancel_timer"), actions("cancel the timer").single())
+        assertEquals(Action("cancel_sleep_timer"), actions("cancel the sleep timer").single())
+        assertEquals("set_alarm", actions("set an alarm for 7 am").single().type)
+        assertEquals("07:00", actions("wake me up at 7 am").single().time)
+        assertEquals(Action("cancel_alarm"), actions("cancel my alarm").single())
+        assertEquals(Action("search", query = "stranger things", appId = "12"), actions("find stranger things on netflix").single())
+        assertEquals(Action("search", query = "interstellar"), actions("search for interstellar").single())
+        // "on the tv" isn't an app, so this is still just opening YouTube.
+        assertEquals(Action("launch_app", appId = "837"), actions("play youtube on the tv").single())
+    }
 }

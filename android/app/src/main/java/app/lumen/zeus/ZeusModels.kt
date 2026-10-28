@@ -15,6 +15,12 @@ data class Action(
     val minutes: Int? = null,
     val text: String? = null,
     val game: String? = null,
+    /** set_timer: length in seconds. */
+    val seconds: Int? = null,
+    /** set_alarm: "HH:MM", 24-hour. */
+    val time: String? = null,
+    /** search: what to look for (a show, movie, actor…). appId optionally narrows it to one app. */
+    val query: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("type", type)
@@ -27,6 +33,9 @@ data class Action(
         minutes?.let { put("minutes", it) }
         text?.let { put("text", it) }
         game?.let { put("game", it) }
+        seconds?.let { put("seconds", it) }
+        time?.let { put("time", it) }
+        query?.let { put("query", it) }
     }
 }
 
@@ -45,12 +54,13 @@ object Zeus {
     val ACTION_TYPES = listOf(
         "launch_app", "switch_input", "keypress", "power", "set_theme", "clear_theme_override",
         "set_sleep_timer", "cancel_sleep_timer", "open_lumen", "show_message", "start_game",
+        "set_timer", "cancel_timer", "set_alarm", "cancel_alarm", "search",
     )
     /** The TV's games (GameKit ids). */
     val GAMES = listOf("bird", "dog", "catch")
 
     /** Answer to "what can you do?" (owner request). */
     val ABILITIES = "Quite a bit, actually. I can open your apps or switch inputs, turn the volume up or down, " +
-        "pause things, set a sleep timer, repaint the screen, turn the TV off, or start a game like Flutter. Just ask."
+        "find a show or movie in your apps, pause things, set timers and alarms, set a sleep timer, repaint the screen, turn the TV off, or start a game like Flutter. Just ask."
     val DEFAULT_CHIPS = listOf("What can you do?", "Paint me something sunny", "Sleep in 30 min")
 }

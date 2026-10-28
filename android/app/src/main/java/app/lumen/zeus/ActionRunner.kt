@@ -3,6 +3,7 @@ package app.lumen.zeus
 import app.lumen.Lumen
 import app.lumen.ecp.Screen
 import app.lumen.theme.Painting
+import app.lumen.watcher.Timers
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
@@ -61,6 +62,33 @@ object ActionRunner {
                 "cancel_sleep_timer" -> {
                     Lumen.setSleep(0)
                     receipts += "Sleep timer off"
+                }
+                "search" -> {
+                    val app = apps.firstOrNull { it.id == a.appId }
+                    val ok = ecp.search(ip, a.query ?: "", app?.id)
+                    receipts += if (!ok) "Couldn't search" else if (app != null) "Searched ${app.name}" else "Searched Roku"
+                }
+                "set_timer" -> {
+                    val secs = a.seconds ?: 60
+                    Timers.setTimer(Lumen.context, secs)
+                    receipts += "Timer: ${TimeRules.describe(secs)}"
+                }
+                "cancel_timer" -> {
+                    Timers.cancel(Lumen.context, Timers.TIMER)
+                    receipts += "Timer cancelled"
+                }
+                "set_alarm" -> {
+                    val (h, m) = a.time!!.split(":").map { it.toInt() }
+                    // A 24-hour time: that exact hour, today if it's still ahead, otherwise tomorrow.
+                    val now = java.time.ZonedDateTime.now()
+                    val today = now.withHour(h).withMinute(m).withSecond(0).withNano(0)
+                    val at = if (today.isAfter(now)) today else today.plusDays(1)
+                    Timers.setAlarm(Lumen.context, at.toInstant().toEpochMilli())
+                    receipts += "Alarm " + java.time.format.DateTimeFormatter.ofPattern("h:mm a").format(at)
+                }
+                "cancel_alarm" -> {
+                    Timers.cancel(Lumen.context, Timers.ALARM)
+                    receipts += "Alarm cancelled"
                 }
                 "start_game" -> {
                     val name = when (a.game) { "dog" -> "Pup Run"; "catch" -> "Star Catcher"; else -> "Flutter" }

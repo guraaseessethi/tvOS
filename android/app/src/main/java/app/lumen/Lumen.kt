@@ -191,6 +191,7 @@ object Lumen {
     suspend fun setSleep(minutes: Int) {
         prefs.setSleepAt(if (minutes > 0) System.currentTimeMillis() + minutes * 60_000L else 0)
         ip()?.let { ecp.input(it, mapOf("sleep" to minutes.toString())) }
+        app.lumen.watcher.Timers.pushToTv()
         app.lumen.watcher.LumenWidget.refresh(context)
     }
 

@@ -46,6 +46,26 @@ sub init()
     m.askZeus.translation = [1824 - 64 - 14 - m.askZeus.width, 72]
     m.topItems = [m.askZeus, m.gear]
 
+    ' Timer, alarm and sleep pills to the left of Ask Zeus (not focusable; Zeus manages them).
+    ' The phone owns them and sends epoch seconds via /input?timers=; a 1 s tick counts down here.
+    m.clockPills = {}
+    for each k in ["timer", "alarm", "sleep"]
+        pill = m.top.createChild("FrostPill")
+        pill.deep = deep
+        pill.solid = true
+        pill.visible = false
+        glyph = "pkg:/images/ui/ic_sleep.png"
+        if k = "alarm" then glyph = "pkg:/images/ui/ic_alarm.png"
+        if k = "timer" then glyph = "pkg:/images/ui/ic_timer.png"
+        pill.glyph = glyph
+        m.clockPills[k] = pill
+    end for
+    m.clockAt = { timer: 0, alarm: 0, sleep: 0 }
+    m.pillTick = m.top.createChild("Timer")
+    m.pillTick.duration = 1
+    m.pillTick.repeat = true
+    m.pillTick.observeField("fire", "paintClockPills")
+
     ' Games card in the open space top-right, above the row.
     m.gamesCard = m.top.createChild("GamesCard")
     m.gamesCard.deep = deep
@@ -79,6 +99,7 @@ sub init()
     m.zeusAutoTimer.observeField("fire", "onZeusAutoClose")
     ' Zeus speaks through the TV: the phone renders the reply in a natural voice (WAV over the bridge).
     m.voice = m.top.createChild("Audio")
+    m.voice.observeField("state", "onVoiceState")
     m.editing = false
     m.editHint = makeHint()
     m.zeus = m.top.createChild("ZeusPanel")
@@ -213,6 +234,9 @@ sub applyTheme(key as string)
     for each n in [m.clock, m.hello, m.row, m.bottom, m.gear, m.askZeus, m.gamesCard, m.launch, m.sleepSheet, m.settingsSheet, m.picker, m.zeus]
         n.deep = deep
     end for
+    for each k in m.clockPills
+        m.clockPills[k].deep = deep
+    end for
     m.reg.Write("theme", key)
     m.reg.Flush()
 end sub
@@ -327,6 +351,10 @@ sub runZeusActions(actions as object)
             ecp({ kind: "sleep", minutes: 0 })
         else if t = "show_message"
             m.toast.message = a.text
+        else if t = "search" and a.query <> invalid
+            req = { query: a.query }
+            if a.appId <> invalid then req.appId = a.appId
+            ecp({ kind: "search", body: FormatJson(req) })
         else if t = "start_game" and a.game <> invalid
             playGame(a.game)
         end if
@@ -499,6 +527,28 @@ sub onInput()
             end if
         end if
     end if
+    ' Timers and alarms (and the sleep timer) from the phone: show them beside Ask Zeus.
+    if args.timers <> invalid
+        tm = ParseJson(args.timers)
+        if tm <> invalid
+            for each k in ["timer", "alarm", "sleep"]
+                v = tm[k]
+                if v = invalid then v = 0
+                m.clockAt[k] = v
+            end for
+            paintClockPills()
+        end if
+    end if
+    ' A timer or alarm rang on the phone: say it here too.
+    if args.ring <> invalid
+        r = ParseJson(args.ring)
+        if r <> invalid
+            if r.text <> invalid then m.toast.message = Left(r.text, 60)
+            if r.voice <> invalid then sayOnTv(r.voice)
+            if r.kind <> invalid then m.clockAt[r.kind] = 0
+            paintClockPills()
+        end if
+    end if
     ' The phone's Games tab (or Zeus) starts a game: focus the games card and begin a run.
     if args.game <> invalid then playGame(args.game)
     ' The sleep timer lives on the phone; it tells Lumen whenever it changes (spec 15.6 handoff).
@@ -534,10 +584,73 @@ sub sayOnTv(url as string)
     if Left(url, 7) <> "http://" then return
     c = CreateObject("roSGNode", "ContentNode")
     c.url = url
+    ' The phone sends AAC (.m4a); WAV only if its encoder wasn't available.
+    if LCase(Right(url, 4)) = ".m4a" then c.streamFormat = "mp4"
+    print "[lumen] zeus voice "; url
     m.voice.control = "stop"
     m.voice.content = c
     m.voice.control = "play"
 end sub
+
+sub onVoiceState()
+    st = m.voice.state
+    if st = "error" then print "[lumen] zeus voice error: "; m.voice.errorMsg else print "[lumen] zeus voice "; st
+end sub
+
+' Countdown pills, right-aligned to the left of Ask Zeus: timer, then alarm, then sleep.
+sub paintClockPills()
+    now = CreateObject("roDateTime").AsSeconds()
+    x = m.askZeus.translation[0] - 14
+    anyOn = false
+    for each k in ["timer", "alarm", "sleep"]
+        pill = m.clockPills[k]
+        at = m.clockAt[k]
+        left = at - now
+        if at > 0 and left > -2
+            anyOn = true
+            if k = "alarm"
+                t = CreateObject("roDateTime")
+                t.FromSeconds(at)
+                t.ToLocalTime()
+                h = t.GetHours()
+                ampm = "am"
+                if h >= 12 then ampm = "pm"
+                h = h mod 12
+                if h = 0 then h = 12
+                mm = t.GetMinutes().ToStr()
+                if Len(mm) < 2 then mm = "0" + mm
+                txt = h.ToStr() + ":" + mm + " " + ampm
+            else
+                if left < 0 then left = 0
+                txt = countdown(left)
+                if k = "sleep" then txt = "Off in " + txt
+            end if
+            if pill.text <> txt then pill.text = txt
+            x = x - pill.width
+            pill.translation = [x, 72]
+            x = x - 12
+            pill.visible = true
+        else
+            pill.visible = false
+        end if
+    end for
+    if anyOn then m.pillTick.control = "start" else m.pillTick.control = "stop"
+end sub
+
+' 9:58, 1:04:09
+function countdown(sec as integer) as string
+    h = Int(sec / 3600)
+    mi = Int((sec mod 3600) / 60)
+    se = sec mod 60
+    ss = se.ToStr()
+    if Len(ss) < 2 then ss = "0" + ss
+    if h > 0
+        ms = mi.ToStr()
+        if Len(ms) < 2 then ms = "0" + ms
+        return h.ToStr() + ":" + ms + ":" + ss
+    end if
+    return mi.ToStr() + ":" + ss
+end function
 
 sub onZeusAutoClose()
     if m.zeusAuto and m.overlay = "zeus" then closeZeus()
