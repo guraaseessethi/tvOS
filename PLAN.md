@@ -53,6 +53,13 @@ Single-activity Compose app, package `app.lumen`, layout exactly as spec 15.7. C
 
 ## 4. Backend (spec 9)
 
+**Owner decision (28 Oct): Firebase instead of Supabase.**
+- Auth: email/password and Google.
+- Firestore: `users/{uid}` and `leaderboard/{game}/scores/{uid}`, with rules in `firebase/firestore.rules`.
+- Zeus: Firebase AI Logic (Gemini), called from the phone. The TV's Zeus goes through the phone's bridge `/zeus`.
+
+The Supabase plan below is kept for reference.
+
 Supabase Edge Function `zeus` (Deno): validates the 9.2 request, builds the system prompt from 7.3 + 9.2 essentials, calls the Claude Messages API with `claude-haiku-5-5`, `max_tokens: 300`, one forced tool `respond` whose JSON schema is exactly `{reply, actions[], chips[]}` with the 9.2 action enum. Server-side filtering drops actions with unknown types or IDs not in `context`. Rate limit 30 req / 10 min per bearer token in a `zeus_rate` table. Secret `ANTHROPIC_API_KEY` set with `supabase secrets set`; never in clients.
 
 ## 5. Build order

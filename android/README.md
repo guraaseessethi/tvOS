@@ -1,0 +1,84 @@
+# Lumen for Android
+
+The phone half of Lumen (spec section 15). It is the TV's remote, Zeus's microphone, the games
+leaderboard, and the **Lumen helper**: it hosts the bridge the Roku channel talks to (PLAN section 7),
+so the Mac helper (`bridge/lumen_bridge.py`) is no longer needed.
+
+| Tab | What it does |
+|---|---|
+| Remote | D-pad (tap, swipe, hold to repeat), Back/Home/Options/Type, media, volume, power, Zeus button |
+| Apps | Your TV's apps (logos on painted cards, like the TV) and inputs, repaint the TV, Memories photos |
+| Zeus | Hold to talk or type. Simple commands run instantly; everything else goes to Gemini through Firebase |
+| Games | Leaderboard for Flutter, Pup Run and Star Catcher. Runs played on the TV are saved under your name |
+| Setup | Auto-open, spoken replies, lock-screen remote, follow the weather, checks, account, city, change TV |
+
+In the background, a foreground service:
+- opens Lumen when the TV turns on and when you back out of an app,
+- serves the bridge on port 8977,
+- runs the sleep timer.
+
+Extras:
+- **"Hey Zeus":** turn it on in Setup. While the app is open, the phone listens for "Hey Zeus" and keeps its screen on. You can say "Hey Zeus, open YouTube" in one go.
+- **Home-screen widget:** the TV's current painting, Zeus and play/pause. Long-press your home screen → Widgets → Lumen.
+- **Quick Settings tile:** "Zeus".
+- **One Zeus conversation:** what you ask on the phone pops up on the TV's Zeus panel for 8 seconds, and what you ask on the TV shows on the phone.
+- **Sleep timer:** always runs on the phone, even when you set it on the TV, so it fires inside any app. The TV shows the current timer.
+- **Scan QR on the TV:** the card under the TV's clock shows a QR code when no phone is connected. "Find your Roku" in the app can scan it.
+
+## Build the APK (on the Mac)
+
+```sh
+cd android
+./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
+./gradlew test                   # unit tests (no phone needed)
+```
+
+Requirements: JDK 17 or newer and the Android SDK. Android Studio installs both. If the build can't
+find the SDK, create `android/local.properties` with `sdk.dir=/Users/<you>/Library/Android/sdk`.
+
+Install it on the Pixel:
+- **USB:** turn on USB debugging, then run `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- **No cable:** copy the APK to the phone, open it, and allow "Install unknown apps".
+
+## Firebase (accounts, leaderboard, Zeus)
+
+The app builds and the remote works without Firebase. Sign-up, the leaderboard and Zeus need it:
+
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Add project** (e.g. "Lumen").
+2. **Add app → Android**:
+   - Package name `app.lumen`.
+   - Add your **SHA-1**, which Google sign-in needs. Get it with `cd android && ./gradlew signingReport`
+     (look for "SHA1" under `debug`).
+   - Download **google-services.json** into `android/app/`. It's git-ignored.
+3. **Authentication → Sign-in method**: turn on **Email/Password** and **Google**.
+4. **Firestore Database → Create database** (production mode). Then, under **Rules**, paste
+   `firebase/firestore.rules` and click Publish.
+5. **AI Logic → Get started**: choose the **Gemini Developer API**. This is what Zeus uses. No API
+   key goes in the app; Firebase handles it. Then use **Setup → Check Zeus** in the app: it says
+   "Zeus is working" or shows the exact error from Gemini.
+6. Rebuild: `./gradlew assembleDebug`. If you turned on Google sign-in after downloading
+   google-services.json, download the file again first.
+
+**If Zeus says "App Check token is invalid"**, App Check is enforced for AI Logic. Do one of these:
+- **Keep App Check on:**
+  1. In the app, tap **Setup → Check Zeus**, then **Copy token**.
+  2. In Firebase, go to **App Check → Apps → Lumen → ⋮ → Manage debug tokens → Add debug token**, paste it and save.
+  3. If the Lumen Android app isn't registered in App Check yet, register it first. Pick the Play Integrity provider; the debug token still works for this phone.
+- **Or turn it off:** in Firebase, go to **App Check → APIs → Firebase AI Logic → Unenforce**.
+
+**If Google sign-in fails**, it's almost always one of two things:
+- **SHA-1 missing:** Firebase → Project settings → Your apps → Lumen → Add fingerprint. Paste
+  the SHA-1 from `./gradlew signingReport`, then download google-services.json again.
+- **Old google-services.json:** it was downloaded before the Google provider was turned on.
+
+The app's error message says which one.
+
+## Tests
+
+`app/src/test` runs on the JVM with no device:
+- `LocalIntentsTest`: offline voice commands.
+- `ZeusRulesTest`: the safety filter on Zeus's answers.
+- `EcpParseTest`: Roku responses.
+- `ThemeRulesTest`: weather → painting, and app colours matching the TV.
+- `WakePhraseTest`: "Hey Zeus" and the ways speech recognition mishears it.
+- `TvQrTest`: reading the TV's pairing QR code.

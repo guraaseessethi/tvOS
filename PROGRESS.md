@@ -45,3 +45,37 @@
 - **Logos** are ink-black, except YouTube's red badge (`lumen-img key … mono|mono-red`). Icons are upscaled 4x before keying and output at 2x, so edges are smooth.
 - **Memories** is the first card. Empty: a painted card with picture glyph and *Memories*. With photos: a rounded full-card slideshow (`/memories/<name>?card=1`), and OK opens a full-screen slideshow. Photos come from `~/Pictures/Lumen Memories` via the Mac helper for now; the phone app takes this over later.
 - **Home behaviour** (helper `watcher()`): backing or Home-ing out of an app onto Roku's home reopens Lumen. Home pressed while in Lumen stays on Roku's home until another app opens. Roku never reports a held Home, so "press Home twice" replaces press-and-hold. Verified: Backdrops → Home → Lumen back within ~1 s; Home in Lumen → stays on Roku home.
+
+## M3 + M4 + M6: Android app (28 Oct, built on the Mac with `android/gradlew`)
+- `android/`: Kotlin + Compose app `app.lumen` with five tabs: Remote, Apps, Zeus, Games and Setup. See `android/README.md`.
+- **Accounts (Firebase Auth):** sign up with name, email, password and confirm password, or Google. The name greets you on the TV and shows on the leaderboard.
+- **Phone hosts the bridge** (PLAN 7) on :8977, with the same contract as `bridge/lumen_bridge.py`:
+  - icons keyed in Kotlin (port of `lumen-img key`), Memories from photos picked on the phone, the sleep timer, `/zeus`;
+  - new: `POST /score` and `GET /leaderboard/<game>`.
+- **Watcher** (`TvWatcherService`): a port of the Mac helper's `watcher()`. It opens Lumen on power-on, returns to Lumen when you back out of an app, keeps Roku home after Home in Lumen, has a "Pause auto-open for 2 hours" notification action, and announces the bridge with `?bridge=&phone=&theme=`.
+- **Zeus** uses Gemini through Firebase AI Logic (no key in the APK). Local intents handle volume, play/pause, open app, inputs, power and sleep instantly. Replies can be spoken and are mirrored to the TV's Zeus panel.
+- **TV (build 31):**
+  - Games send each finished run to the bridge, and the TV toasts your leaderboard rank.
+  - Lumen accepts `?theme=` (the phone repaints the TV, or follows the weather) and `?zeus=` (phone exchanges shown in the Zeus panel).
+- **Tests:** 25 JVM unit tests in `android/app/src/test`, all passing. They were run with kotlinc + JUnit, because Google's Maven host is blocked in the cloud session, so Gradle couldn't run there. `bsc` lint on `roku/` reports no new issues.
+
+### Follow-up (28 Oct, owner feedback)
+- **Zeus failing:**
+  - Gemini 2.5's thinking was using up the 400-token budget, so answers came back empty. The budget is now 2048.
+  - Models fall back in order: 3.8 Flash → flash-latest → 3.5 Flash-Lite → 3 Flash preview → 2.5 Flash. Google only serves 2.5 to projects that used it before, so a new Firebase project needs the 3.x models.
+  - Answers wrapped in ```json fences or plain text are accepted.
+  - **Setup → Check Zeus** shows the real error.
+- **Zeus on both sides:**
+  - One shared conversation (`ZeusLog`). Phone exchanges open the TV's Zeus panel for 8 s (any key keeps it open).
+  - The TV's questions appear on the phone with an "On the TV" tag.
+- **"Hey Zeus":** on-device speech recognition with a sound-alike-tolerant wake phrase, while the app is in the foreground. It keeps the screen on and pauses while Zeus is listening or talking.
+- **Widget:** 2x2, with the painting, Zeus and play/pause.
+- **Timer handoff (15.6):** the phone is the bridge, so the TV's sleep sheet and Zeus already set the phone's timer through `/sleep`. The phone now reports changes back with `/input?sleep=`. No backend linking is needed.
+- **Accounts:**
+  - The name no longer shows as the email prefix after sign-up.
+  - Google sign-in uses the Google name, has a bottom-sheet fallback, and gives clear SHA-1 / config errors.
+  - The official multicolour Google "G" is on the button.
+  - Onboarding asks "What should Zeus call you?"
+- **Keyboard:** a "keyboard down" button floats above the keyboard. The remote's Type box has arrow keys and OK.
+- **QR pairing:** the TV's hello card shows `lumen://connect?ip=…&name=…` (image from api.qrserver.com). "Find your Roku" has **Scan QR on the TV** (Google code scanner, no camera permission).
+- **Tests:** 34 JVM tests, all passing. `bsc` reports no new TV issues.

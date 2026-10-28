@@ -4,8 +4,8 @@
     phone connected        -> just a warm, slightly witty greeting with the owner's name
     remembered, not here   -> QR card "Reconnect, <name>"
     never paired           -> QR card "Connect your phone"
-  The QR carries a one-time code that the bridge replaces after every pairing and disconnect,
-  so the image changes each time. Not focusable (spec 6.2).
+  The QR says lumen://connect?ip=<this TV>&name=<its name>: the phone app's "Scan QR on the TV"
+  reads it and connects straight to this TV. Not focusable (spec 6.2).
 -->
 <component name="HelloCard" extends="Group">
   <interface>
@@ -102,15 +102,42 @@
               m.greetShadow.text = g
               m.greetedFor = name
           end if
-      else if m.top.bridge <> invalid and m.top.bridge <> ""
-          m.greetedFor = ""
-          m.qr.uri = m.top.bridge + "/qr.png?c=" + m.top.code
-          m.how.text = "Scan with your phone camera, on the same Wi-Fi"
       else
-          m.qr.uri = ""
-          m.how.text = "Start the Lumen helper to pair"
+          m.greetedFor = ""
+          m.qr.uri = pairQr()
+          m.how.text = "In the Lumen phone app, tap Scan QR on the TV"
       end if
   end sub
+
+  ' The QR image comes from a public QR service; all it carries is this TV's local address and name.
+  function pairQr() as string
+      di = CreateObject("roDeviceInfo")
+      ip = ""
+      addrs = di.GetIPAddrs()
+      for each k in addrs
+          ip = addrs[k]
+      end for
+      if ip = "" then return ""
+      data = "lumen://connect?ip=" + ip + "&name=" + urlEscape(di.GetFriendlyName())
+      return "https://api.qrserver.com/v1/create-qr-code/?size=304x304&margin=8&format=png&data=" + urlEscape(data)
+  end function
+
+  ' Percent-encoding by hand: roUrlTransfer (which has Escape) isn't allowed on the render thread.
+  function urlEscape(s as string) as string
+      ba = CreateObject("roByteArray")
+      ba.FromAsciiString(s)
+      out = ""
+      for each b in ba
+          if (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122) or b = 45 or b = 46 or b = 95 or b = 126
+              out = out + Chr(b)
+          else
+              h = UCase(StrI(b, 16))
+              if Len(h) = 1 then h = "0" + h
+              out = out + "%" + h
+          end if
+      end for
+      return out
+  end function
 
   ' Picked fresh every launch; the time of day decides the pool.
   function greeting(name as string) as string

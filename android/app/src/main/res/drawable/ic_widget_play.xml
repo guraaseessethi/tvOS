@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Play/pause glyph in ink. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#1C1C1C" android:pathData="M4,5.5v13a1,1 0,0 0,1.5 0.87l9.5,-6.5a1,1 0,0 0,0 -1.74l-9.5,-6.5A1,1 0,0 0,4 5.5z" />
+    <path android:fillColor="#1C1C1C" android:pathData="M17,5h2.5v14H17zM20.5,5H22v14h-1.5z" />
+</vector>

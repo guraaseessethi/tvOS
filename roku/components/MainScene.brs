@@ -52,6 +52,7 @@ sub init()
     m.gamesCard.theme = m.theme
     ' Spans from just right of the clock to the right edge (width 1241 from GamesCard).
     m.gamesCard.translation = [583, 160]
+    m.gamesCard.observeField("scored", "onScored")
 
     ' 6: overlays
     m.memories = m.top.createChild("MemoriesView")
@@ -71,6 +72,13 @@ sub init()
     m.settingsSheet.observeField("changed", "onSettingChanged")
     m.settingsSheet.observeField("chosen", "onSettingChanged")
     m.sleepMin = 0
+    ' Spec 7.1: a phone exchange opens the Zeus panel for 8 s, unless a key is pressed meanwhile.
+    m.zeusAuto = false
+    m.zeusAutoTimer = m.top.createChild("Timer")
+    m.zeusAutoTimer.duration = 8
+    m.zeusAutoTimer.observeField("fire", "onZeusAutoClose")
+    ' Zeus speaks through the TV: the phone renders the reply in a natural voice (WAV over the bridge).
+    m.voice = m.top.createChild("Audio")
     m.editing = false
     m.editHint = makeHint()
     m.zeus = m.top.createChild("ZeusPanel")
@@ -266,12 +274,18 @@ end sub
 
 sub onZeusAnswer(res as object)
     m.zeus.thinking = false
+    print "[lumen] zeus answer ok="; res.ok; " code="; res.code
     if not res.ok
-        m.zeus.callFunc("addMessage", "zeus", "I can't reach the Lumen helper right now. Try again in a moment.")
+        if res.code = -1
+            m.zeus.callFunc("addMessage", "zeus", "That took too long. Try again?")
+        else
+            m.zeus.callFunc("addMessage", "zeus", "I can't reach the Lumen app on your phone right now. Is it open on the same Wi-Fi?")
+        end if
         return
     end if
     z = res.zeus
     if z.reply <> invalid and z.reply <> "" then m.zeus.callFunc("addMessage", "zeus", z.reply)
+    if z.voice <> invalid then sayOnTv(z.voice)
     if z.chips <> invalid and z.chips.Count() > 0 then m.zeus.callFunc("setChips", z.chips)
     if z.actions <> invalid then runZeusActions(z.actions)
 end sub
@@ -313,6 +327,8 @@ sub runZeusActions(actions as object)
             ecp({ kind: "sleep", minutes: 0 })
         else if t = "show_message"
             m.toast.message = a.text
+        else if t = "start_game" and a.game <> invalid
+            playGame(a.game)
         end if
     end for
 end sub
@@ -461,6 +477,38 @@ sub onInput()
             m.hello.connected = (data.connected = true)
         end if
     end if
+    ' Spec 15.6: the phone repaints the TV (weather or a painting picked on the phone).
+    if args.theme <> invalid
+        t = ParseJson(args.theme)
+        if t <> invalid and t.theme <> invalid then applyTheme(t.theme)
+    end if
+    ' Spec 7.1: a voice exchange on the phone shows up in the Zeus panel, or as a toast.
+    if args.zeus <> invalid
+        z = ParseJson(args.zeus)
+        if z <> invalid
+            if z.user <> invalid and z.user <> "" then m.zeus.callFunc("addMessage", "user", z.user)
+            if z.reply <> invalid and z.reply <> "" then m.zeus.callFunc("addMessage", "zeus", z.reply)
+            if z.voice <> invalid then sayOnTv(z.voice)
+            ' quiet: the exchange started a game, so don't cover it with the panel.
+            if m.overlay = invalid and z.quiet <> true
+                openZeus()
+                m.zeusAuto = true
+                m.zeusAutoTimer.control = "start"
+            else if m.overlay <> "zeus" and z.reply <> invalid
+                m.toast.message = Left(z.reply, 60)
+            end if
+        end if
+    end if
+    ' The phone's Games tab (or Zeus) starts a game: focus the games card and begin a run.
+    if args.game <> invalid then playGame(args.game)
+    ' The sleep timer lives on the phone; it tells Lumen whenever it changes (spec 15.6 handoff).
+    if args.sleep <> invalid
+        mins = args.sleep.ToInt()
+        if mins <> m.sleepMin
+            m.sleepMin = mins
+            if mins > 0 then m.toast.message = "Sleep timer: " + mins.ToStr() + " min" else m.toast.message = "Sleep timer off"
+        end if
+    end if
     if args.bridge = invalid then return
     url = args.bridge
     if Left(url, 7) <> "http://" then return
@@ -471,6 +519,35 @@ sub onInput()
     m.launch.iconBase = url
     m.hello.bridge = url
     loadApps()
+end sub
+
+sub playGame(id as string)
+    if m.overlay = "zeus" then closeZeus()
+    if m.overlay <> invalid then return
+    m.zeusAuto = false
+    m.zone = "games"
+    applyFocus()
+    m.gamesCard.callFunc("startGame", id)
+end sub
+
+sub sayOnTv(url as string)
+    if Left(url, 7) <> "http://" then return
+    c = CreateObject("roSGNode", "ContentNode")
+    c.url = url
+    m.voice.control = "stop"
+    m.voice.content = c
+    m.voice.control = "play"
+end sub
+
+sub onZeusAutoClose()
+    if m.zeusAuto and m.overlay = "zeus" then closeZeus()
+    m.zeusAuto = false
+end sub
+
+sub onScored()
+    sc = m.gamesCard.scored
+    if sc = invalid or m.bridge = "" then return
+    ecp({ kind: "score", game: sc.game, points: sc.points })
 end sub
 
 sub setUserName(name as string)
@@ -530,6 +607,13 @@ sub onEcp(event as object)
             sec = CreateObject("roRegistrySection", "lumen")
             sec.Write("appsCache", json)
             sec.Flush()
+        end if
+    else if res.kind = "score"
+        ' The phone saved the run to the leaderboard; it answers with the player's rank.
+        if res.ok and res.score.rank <> invalid
+            msg = "Leaderboard: #" + res.score.rank.ToStr()
+            if res.score.newBest = true then msg = "New best on the leaderboard: #" + res.score.rank.ToStr()
+            m.toast.message = msg
         end if
     else if res.kind = "memories"
         if res.ok
@@ -647,6 +731,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
         ' Releases matter only to the games panel (hold ‹ › in Star Catcher).
         if m.zone = "games" and m.overlay = invalid then m.gamesCard.callFunc("handleKey", key + "_up")
         return true
+    end if
+    ' Any key keeps a phone-opened Zeus panel open.
+    if m.zeusAuto
+        m.zeusAuto = false
+        m.zeusAutoTimer.control = "stop"
     end if
 
     if m.overlay = "memories"
