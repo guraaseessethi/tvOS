@@ -59,6 +59,13 @@ The app builds and the remote works without Firebase. Sign-up, the leaderboard a
 6. Rebuild: `./gradlew assembleDebug`. If you turned on Google sign-in after downloading
    google-services.json, download the file again first.
 
+**If Zeus says "App Check token is invalid"**, App Check is enforced for AI Logic. Do one of these:
+- **Keep App Check on:**
+  1. In the app, tap **Setup → Check Zeus**, then **Copy token**.
+  2. In Firebase, go to **App Check → Apps → Lumen → ⋮ → Manage debug tokens → Add debug token**, paste it and save.
+  3. If the Lumen Android app isn't registered in App Check yet, register it first. Pick the Play Integrity provider; the debug token still works for this phone.
+- **Or turn it off:** in Firebase, go to **App Check → APIs → Firebase AI Logic → Unenforce**.
+
 **If Google sign-in fails**, it's almost always one of two things:
 - **SHA-1 missing:** Firebase → Project settings → Your apps → Lumen → Add fingerprint. Paste
   the SHA-1 from `./gradlew signingReport`, then download google-services.json again.

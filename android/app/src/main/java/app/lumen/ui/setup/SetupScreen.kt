@@ -42,13 +42,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import app.lumen.Lumen
 import app.lumen.auth.Account
+import app.lumen.auth.AppCheck
 import app.lumen.auth.Auth
 import app.lumen.theme.Painting
 import app.lumen.ui.common.CheckRow
@@ -83,6 +86,7 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
         if (ok) scope.launch { Lumen.prefs.setHeyZeus(true) } else toast("Allow the microphone for Hey Zeus")
     }
     var zeusCheck by remember { mutableStateOf<String?>(null) }
+    val clipboard = LocalClipboardManager.current
 
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
         Column(Modifier.padding(horizontal = 20.dp)) {
@@ -185,6 +189,18 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
             zeusCheck?.takeIf { it != "…" }?.let {
                 Spacer(Modifier.height(6.dp))
                 Text(it, style = T.ui(14, FontWeight.SemiBold, if (it.startsWith("Zeus is working")) Ink.okGreen else Ink.red))
+            }
+            // App Check (if it's enforced for AI Logic): this phone's debug token, to register once in Firebase.
+            val token = remember(zeusCheck) { AppCheck.debugToken(context) }
+            if (token != null) {
+                Spacer(Modifier.height(10.dp))
+                Text("App Check token for this phone", style = T.ui(14, FontWeight.ExtraBold, Ink.ink))
+                Text(token, style = T.ui(13, FontWeight.SemiBold, Ink.ink60))
+                Spacer(Modifier.height(6.dp))
+                OutlineButton("Copy token") {
+                    clipboard.setText(AnnotatedString(token))
+                    toast("Copied. Add it in Firebase > App Check > Apps > Manage debug tokens")
+                }
             }
 
             Spacer(Modifier.height(18.dp))

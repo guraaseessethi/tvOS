@@ -136,16 +136,17 @@ object ZeusBrain {
                     failure = e
                     val msg = e.message.orEmpty()
                     // Project-level problems won't be fixed by another model.
-                    if (offline(msg) || notEnabled(msg)) break
+                    if (offline(msg) || notEnabled(msg) || appCheck(msg)) break
                 }
             }
             val msg = failure?.message.orEmpty()
-            if (offline(msg) || notEnabled(msg)) break
+            if (offline(msg) || notEnabled(msg) || appCheck(msg)) break
         }
         val msg = failure?.message.orEmpty()
         lastError = (failure?.javaClass?.simpleName ?: "Error") + ": " + msg.take(300)
         return when {
             offline(msg) -> Answer("I can't reach the internet right now, but I can still open apps, change volume and set timers.")
+            appCheck(msg) -> Answer("Firebase App Check blocked me. Register this phone's App Check token from Setup in the Firebase console, or turn off enforcement for AI Logic.")
             notEnabled(msg) -> Answer("Turn on Firebase AI Logic with the Gemini Developer API in the Firebase console, then ask me again.")
             else -> Answer("I couldn't reach Gemini. Setup > Check Zeus shows why.", chips = listOf("Try again"))
         }
@@ -153,6 +154,8 @@ object ZeusBrain {
 
     private fun offline(msg: String) =
         msg.contains("Unable to resolve host", true) || msg.contains("failed to connect", true) || msg.contains("network", true)
+
+    private fun appCheck(msg: String) = msg.contains("App Check", true) || msg.contains("AppCheck", true)
 
     private fun notEnabled(msg: String) =
         msg.contains("API has not been used", true) || msg.contains("is disabled", true) ||

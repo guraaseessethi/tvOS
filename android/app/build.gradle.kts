@@ -74,6 +74,9 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-ai")
+    // App Check for AI Logic. A sideloaded APK can't pass Play Integrity, so it uses the debug
+    // provider: its token is shown in Setup and registered once in the Firebase console.
+    implementation("com.google.firebase:firebase-appcheck-debug")
 
     implementation("androidx.credentials:credentials:1.5.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
