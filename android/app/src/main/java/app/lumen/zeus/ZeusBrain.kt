@@ -11,6 +11,7 @@ import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
+import com.google.firebase.ai.type.thinkingConfig
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
@@ -27,10 +28,19 @@ import org.json.JSONObject
  */
 object ZeusBrain {
     private const val TAG = "Zeus"
-    private val MODELS = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash-lite", "gemini-3-flash-preview", "gemini-2.5-flash")
+    // Fastest first: Lumen's commands are simple, so Flash-Lite is plenty. "-latest" aliases always
+    // point at Google's current model, so they keep working when versions move on.
+    private val MODELS = listOf(
+        "gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-3.8-flash",
+        "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemini-2.5-flash",
+    )
 
     /** The last failure in plain words, shown in Setup > Check Zeus. */
     @Volatile var lastError: String = ""
+        private set
+
+    /** How the last successful answer went, e.g. "gemini-flash-lite-latest in 1.2 s". */
+    @Volatile var lastTiming: String = ""
         private set
 
     private val SYSTEM = """
@@ -87,18 +97,26 @@ object ZeusBrain {
     private val models = HashMap<String, GenerativeModel>()
     @Volatile private var working: String? = null
 
-    private fun model(name: String, structured: Boolean): GenerativeModel = models.getOrPut("$name/$structured") {
+    /**
+     * quick = thinking budget 0 (minimal thinking), which is what makes Zeus answer in about a
+     * second. A model that refuses that setting is retried with its default thinking.
+     */
+    private fun model(name: String, structured: Boolean, quick: Boolean): GenerativeModel = models.getOrPut("$name/$structured/$quick") {
         Firebase.ai(backend = GenerativeBackend.googleAI()).generativeModel(
             modelName = name,
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
                 if (structured) responseSchema = schema
-                maxOutputTokens = 4096
+                maxOutputTokens = if (quick) 600 else 4096
                 temperature = 0.6f
+                if (quick) thinkingConfig = thinkingConfig { thinkingBudget = 0 }
             },
             systemInstruction = content { text(SYSTEM) },
         )
     }
+
+    /** What worked last time (model + settings), remembered across app restarts. */
+    private fun prefs(context: Context) = context.getSharedPreferences("zeus", Context.MODE_PRIVATE)
 
     /** facts: painting, weather, time, sleep timer… anything that helps. */
     suspend fun ask(
@@ -117,35 +135,48 @@ object ZeusBrain {
         facts.put("apps", JSONArray(appList.map { JSONObject().put("id", it.id).put("name", it.name) }))
         facts.put("inputs", JSONArray(inputs.map { JSONObject().put("id", it.id).put("name", it.name) }))
         Auth.current(context)?.let { facts.put("person", it.name) }
+        val askStarted = System.currentTimeMillis()
         val prompt = "TV state: $facts\n\nThe person says: ${message.take(500)}"
         val past = history.takeLast(6).map { t ->
             content(role = if (t.fromZeus) "model" else "user") { text(t.text.take(500)) }
         }.dropWhile { it.role == "model" }
 
-        // The model that worked last time first, then the rest; structured output first, then plain JSON.
-        val order = (listOfNotNull(working) + MODELS).distinct()
+        // What worked last time goes first (one call, no detours); then the fast list.
+        // Each model: quick (no thinking) + structured, then quick + plain JSON, then default thinking.
+        val saved = working ?: prefs(context).getString("variant", null)
+        val variants = MODELS.flatMap { m -> listOf("$m|true|true", "$m|false|true", "$m|true|false") }
+        val order = (listOfNotNull(saved) + variants).distinct()
         var failure: Exception? = null
-        for (name in order) {
-            for (structured in listOf(true, false)) {
-                try {
-                    val text = withTimeout(15_000) { model(name, structured).startChat(past).sendMessage(prompt).text }
-                    if (text.isNullOrBlank()) { failure = IllegalStateException("$name returned an empty answer"); continue }
-                    working = name
-                    lastError = ""
-                    return ZeusRules.parse(text, apps)
-                } catch (e: TimeoutCancellationException) {
-                    lastError = "Gemini took longer than 15 seconds."
-                    return Answer("That took too long. Try again?", chips = listOf("Try again"))
-                } catch (e: Exception) {
-                    Log.w(TAG, "model $name structured=$structured failed", e)
-                    failure = e
-                    val msg = e.message.orEmpty()
-                    // Project-level problems won't be fixed by another model.
-                    if (offline(msg) || notEnabled(msg) || appCheck(msg)) break
+        for (variant in order) {
+            val (name, structuredS, quickS) = variant.split("|").let { Triple(it[0], it.getOrElse(1) { "true" }, it.getOrElse(2) { "true" }) }
+            val structured = structuredS == "true"
+            val quick = quickS == "true"
+            val started = System.currentTimeMillis()
+            try {
+                val text = withTimeout(9_000) { model(name, structured, quick).startChat(past).sendMessage(prompt).text }
+                if (text.isNullOrBlank()) { failure = IllegalStateException("$name returned an empty answer"); continue }
+                if (working != variant) {
+                    working = variant
+                    prefs(context).edit().putString("variant", variant).apply()
                 }
+                lastError = ""
+                lastTiming = "$name in ${"%.1f".format((System.currentTimeMillis() - started) / 1000.0)} s" +
+                    if (quick) "" else " (thinking on)"
+                return ZeusRules.parse(text, apps)
+            } catch (e: TimeoutCancellationException) {
+                // Too slow: try the next (faster or simpler) option instead of giving up.
+                failure = IllegalStateException("$name took longer than 9 seconds")
+                if (variant == saved) { working = null; prefs(context).edit().remove("variant").apply() }
+            } catch (e: Exception) {
+                Log.w(TAG, "zeus $variant failed", e)
+                failure = e
+                if (variant == saved) { working = null; prefs(context).edit().remove("variant").apply() }
+                val msg = e.message.orEmpty()
+                // Project-level problems won't be fixed by another model.
+                if (offline(msg) || notEnabled(msg) || appCheck(msg)) break
             }
-            val msg = failure?.message.orEmpty()
-            if (offline(msg) || notEnabled(msg) || appCheck(msg)) break
+            // Never keep someone waiting more than ~20 s in total.
+            if (System.currentTimeMillis() - askStarted > 20_000) break
         }
         val msg = failure?.message.orEmpty()
         lastError = (failure?.javaClass?.simpleName ?: "Error") + ": " + msg.take(300)
@@ -153,6 +184,7 @@ object ZeusBrain {
             offline(msg) -> Answer("I can't reach the internet right now, but I can still open apps, change volume and set timers.")
             appCheck(msg) -> Answer("Firebase App Check blocked me. Register this phone's App Check token from Setup in the Firebase console, or turn off enforcement for AI Logic.")
             notEnabled(msg) -> Answer("Turn on Firebase AI Logic with the Gemini Developer API in the Firebase console, then ask me again.")
+            msg.contains("longer than") -> Answer("That took too long. Try again?", chips = listOf("Try again"))
             else -> Answer("I couldn't reach Gemini. Setup > Check Zeus shows why.", chips = listOf("Try again"))
         }
     }
@@ -170,6 +202,6 @@ object ZeusBrain {
     /** Setup > Check Zeus: one tiny request, with the real reason when it fails. */
     suspend fun check(context: Context): String {
         val a = ask(context, "Say hello in five words.", emptyList(), emptyList(), JSONObject())
-        return if (lastError.isEmpty()) "Zeus is working: \"${a.reply}\"" else "Zeus can't think yet. $lastError"
+        return if (lastError.isEmpty()) "Zeus is working ($lastTiming): \"${a.reply}\"" else "Zeus can't think yet. $lastError"
     }
 }

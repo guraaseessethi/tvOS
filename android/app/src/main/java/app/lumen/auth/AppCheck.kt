@@ -13,7 +13,12 @@ import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 object AppCheck {
     fun install(context: Context) {
         if (!Auth.ready(context)) return
-        runCatching { FirebaseAppCheck.getInstance().installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance()) }
+        runCatching {
+            val appCheck = FirebaseAppCheck.getInstance()
+            appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance())
+            // Fetch a token now, so Zeus's first question doesn't wait for it.
+            appCheck.getAppCheckToken(false)
+        }
     }
 
     /**
