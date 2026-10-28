@@ -17,7 +17,13 @@ In the background, a foreground service:
 - serves the bridge on port 8977,
 - runs the sleep timer.
 
-There's also a Quick Settings tile, "Zeus".
+Extras:
+- **"Hey Zeus":** turn it on in Setup. While the app is open, the phone listens for "Hey Zeus" and keeps its screen on. You can say "Hey Zeus, open YouTube" in one go.
+- **Home-screen widget:** the TV's current painting, Zeus and play/pause. Long-press your home screen → Widgets → Lumen.
+- **Quick Settings tile:** "Zeus".
+- **One Zeus conversation:** what you ask on the phone pops up on the TV's Zeus panel for 8 seconds, and what you ask on the TV shows on the phone.
+- **Sleep timer:** always runs on the phone, even when you set it on the TV, so it fires inside any app. The TV shows the current timer.
+- **Scan QR on the TV:** the card under the TV's clock shows a QR code when no phone is connected. "Find your Roku" in the app can scan it.
 
 ## Build the APK (on the Mac)
 
@@ -48,9 +54,17 @@ The app builds and the remote works without Firebase. Sign-up, the leaderboard a
 4. **Firestore Database → Create database** (production mode). Then, under **Rules**, paste
    `firebase/firestore.rules` and click Publish.
 5. **AI Logic → Get started**: choose the **Gemini Developer API**. This is what Zeus uses. No API
-   key goes in the app; Firebase handles it.
+   key goes in the app; Firebase handles it. Then use **Setup → Check Zeus** in the app: it says
+   "Zeus is working" or shows the exact error from Gemini.
 6. Rebuild: `./gradlew assembleDebug`. If you turned on Google sign-in after downloading
    google-services.json, download the file again first.
+
+**If Google sign-in fails**, it's almost always one of two things:
+- **SHA-1 missing:** Firebase → Project settings → Your apps → Lumen → Add fingerprint. Paste
+  the SHA-1 from `./gradlew signingReport`, then download google-services.json again.
+- **Old google-services.json:** it was downloaded before the Google provider was turned on.
+
+The app's error message says which one.
 
 ## Tests
 
@@ -59,3 +73,5 @@ The app builds and the remote works without Firebase. Sign-up, the leaderboard a
 - `ZeusRulesTest`: the safety filter on Zeus's answers.
 - `EcpParseTest`: Roku responses.
 - `ThemeRulesTest`: weather → painting, and app colours matching the TV.
+- `WakePhraseTest`: "Hey Zeus" and the ways speech recognition mishears it.
+- `TvQrTest`: reading the TV's pairing QR code.

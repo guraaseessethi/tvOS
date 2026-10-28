@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">Lumen</string>
     <string name="tile_zeus">Zeus</string>
+    <string name="widget_description">The painting on your TV, Zeus and play/pause</string>
 </resources>

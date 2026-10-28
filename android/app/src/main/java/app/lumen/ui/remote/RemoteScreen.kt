@@ -344,6 +344,25 @@ private fun TypeSheet(onClose: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
                         .padding(16.dp).focusRequester(focus),
                 )
+                Spacer(Modifier.height(12.dp))
+                // Move around the TV's keyboard or results without closing this box.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    listOf(
+                        Icons.Rounded.KeyboardArrowLeft to "Left", Icons.Rounded.KeyboardArrowUp to "Up",
+                        Icons.Rounded.KeyboardArrowDown to "Down", Icons.Rounded.KeyboardArrowRight to "Right",
+                    ).forEach { (icon, key) ->
+                        Box(
+                            Modifier.size(48.dp).clip(CircleShape).background(Color.White).border(2.dp, Ink.ink, CircleShape)
+                                .clickable { Lumen.key(key) },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(icon, key, tint = Ink.ink) }
+                    }
+                    Box(
+                        Modifier.size(48.dp).clip(CircleShape).background(Ink.yellow).border(2.dp, Ink.ink, CircleShape)
+                            .clickable { Lumen.key("Select") },
+                        contentAlignment = Alignment.Center,
+                    ) { Text("OK", style = T.ui(14, FontWeight.ExtraBold, Ink.ink)) }
+                }
             }
         },
         confirmButton = {

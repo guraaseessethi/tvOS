@@ -7,6 +7,8 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.Locale
 
 /** Hold-to-talk with live partial results (spec 15.2 speech). Call from the main thread. */
@@ -71,8 +73,17 @@ class Speech(context: Context, private val onPartial: (String) -> Unit, private 
 /** Spoken replies (spec 15.2), en-CA when the phone has it. */
 class Voice(context: Context) {
     private var ready = false
+    /** True while a reply is being read out, so "Hey Zeus" doesn't hear Zeus himself. */
+    val speaking = MutableStateFlow(false)
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
         ready = status == TextToSpeech.SUCCESS
+    }.apply {
+        setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) { speaking.value = true }
+            override fun onDone(utteranceId: String?) { speaking.value = false }
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) { speaking.value = false }
+        })
     }
 
     fun say(text: String) {
@@ -82,6 +93,6 @@ class Voice(context: Context) {
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "zeus")
     }
 
-    fun stop() = tts.stop()
+    fun stop() { tts.stop(); speaking.value = false }
     fun shutdown() = tts.shutdown()
 }

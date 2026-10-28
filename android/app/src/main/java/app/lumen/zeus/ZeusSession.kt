@@ -10,7 +10,7 @@ import java.time.OffsetDateTime
 object ZeusSession {
     data class Result(val user: String, val answer: Answer, val receipts: List<String>)
 
-    suspend fun send(context: Context, text: String, history: List<Turn>): Result {
+    suspend fun send(context: Context, text: String): Result {
         if (Lumen.tv.value.apps.isEmpty()) Lumen.refreshTv()
         val tv = Lumen.tv.value
         val s = Lumen.settings.value
@@ -23,9 +23,10 @@ object ZeusSession {
                 .put("sleepTimerMinutesLeft", Lumen.sleepMinutesLeft())
                 .put("inputNames", JSONObject(s.inputNames as Map<*, *>))
             Lumen.weather.value?.let { facts.put("weather", it.line(s.fahrenheit)) }
-            ZeusBrain.ask(context, text, tv.apps, history, facts)
+            ZeusBrain.ask(context, text, tv.apps, ZeusLog.history(), facts)
         }
         val receipts = ActionRunner.run(answer.actions)
+        ZeusLog.add(ZeusLog.Exchange(text, answer.reply, receipts, fromTv = false))
         ActionRunner.mirrorToTv(text, answer.reply, receipts)
         return Result(text, answer, receipts)
     }

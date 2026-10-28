@@ -72,6 +72,11 @@ sub init()
     m.settingsSheet.observeField("changed", "onSettingChanged")
     m.settingsSheet.observeField("chosen", "onSettingChanged")
     m.sleepMin = 0
+    ' Spec 7.1: a phone exchange opens the Zeus panel for 8 s, unless a key is pressed meanwhile.
+    m.zeusAuto = false
+    m.zeusAutoTimer = m.top.createChild("Timer")
+    m.zeusAutoTimer.duration = 8
+    m.zeusAutoTimer.observeField("fire", "onZeusAutoClose")
     m.editing = false
     m.editHint = makeHint()
     m.zeus = m.top.createChild("ZeusPanel")
@@ -472,10 +477,22 @@ sub onInput()
         z = ParseJson(args.zeus)
         if z <> invalid
             if z.user <> invalid and z.user <> "" then m.zeus.callFunc("addMessage", "user", z.user)
-            if z.reply <> invalid and z.reply <> ""
-                m.zeus.callFunc("addMessage", "zeus", z.reply)
-                if m.zeus.open <> true then m.toast.message = Left(z.reply, 60)
+            if z.reply <> invalid and z.reply <> "" then m.zeus.callFunc("addMessage", "zeus", z.reply)
+            if m.overlay = invalid
+                openZeus()
+                m.zeusAuto = true
+                m.zeusAutoTimer.control = "start"
+            else if m.overlay <> "zeus" and z.reply <> invalid
+                m.toast.message = Left(z.reply, 60)
             end if
+        end if
+    end if
+    ' The sleep timer lives on the phone; it tells Lumen whenever it changes (spec 15.6 handoff).
+    if args.sleep <> invalid
+        mins = args.sleep.ToInt()
+        if mins <> m.sleepMin
+            m.sleepMin = mins
+            if mins > 0 then m.toast.message = "Sleep timer: " + mins.ToStr() + " min" else m.toast.message = "Sleep timer off"
         end if
     end if
     if args.bridge = invalid then return
@@ -488,6 +505,11 @@ sub onInput()
     m.launch.iconBase = url
     m.hello.bridge = url
     loadApps()
+end sub
+
+sub onZeusAutoClose()
+    if m.zeusAuto and m.overlay = "zeus" then closeZeus()
+    m.zeusAuto = false
 end sub
 
 sub onScored()
@@ -677,6 +699,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
         ' Releases matter only to the games panel (hold ‹ › in Star Catcher).
         if m.zone = "games" and m.overlay = invalid then m.gamesCard.callFunc("handleKey", key + "_up")
         return true
+    end if
+    ' Any key keeps a phone-opened Zeus panel open.
+    if m.zeusAuto
+        m.zeusAuto = false
+        m.zeusAutoTimer.control = "stop"
     end if
 
     if m.overlay = "memories"

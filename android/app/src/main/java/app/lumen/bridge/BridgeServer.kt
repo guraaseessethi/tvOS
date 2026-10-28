@@ -4,8 +4,11 @@ import android.content.Context
 import app.lumen.Lumen
 import app.lumen.games.Game
 import app.lumen.games.Leaderboard
-import app.lumen.zeus.Turn
+import app.lumen.ecp.RokuApp
+import app.lumen.zeus.Action
+import app.lumen.zeus.LocalIntents
 import app.lumen.zeus.ZeusBrain
+import app.lumen.zeus.ZeusLog
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.IHTTPSession
 import fi.iki.elonen.NanoHTTPD.Method
@@ -88,12 +91,10 @@ class BridgeServer(private val context: Context, port: Int, private val memories
         return reply(404)
     }
 
+    /** The TV's Zeus panel asks here. Same brain and same conversation as the phone (ZeusLog). */
     private suspend fun zeus(body: JSONObject): JSONObject {
         val ctx = body.optJSONObject("context") ?: JSONObject()
-        val hist = ctx.optJSONArray("history")
-        val turns = (0 until (hist?.length() ?: 0)).mapNotNull { i ->
-            hist!!.optJSONObject(i)?.let { Turn(it.optString("role") == "zeus", it.optString("text")) }
-        }
+        val message = body.optString("message")
         val apps = Lumen.tv.value.apps.ifEmpty { Lumen.refreshTv().apps }
         val facts = JSONObject()
             .put("source", "tv")
@@ -101,7 +102,22 @@ class BridgeServer(private val context: Context, port: Int, private val memories
             .put("painting", ctx.optString("theme"))
             .put("sleepTimerMinutesLeft", Lumen.sleepMinutesLeft())
         Lumen.weather.value?.let { facts.put("weather", it.line(Lumen.settings.value.fahrenheit)) }
-        return ZeusBrain.ask(context, body.optString("message"), apps, turns, facts).toJson()
+        val answer = LocalIntents.match(message, apps, Lumen.settings.value.inputNames)
+            ?: ZeusBrain.ask(context, message, apps, ZeusLog.history(), facts)
+        // The TV runs the actions itself; the phone keeps the conversation and shows it.
+        ZeusLog.add(ZeusLog.Exchange(message, answer.reply, answer.actions.map { describe(it, apps) }, fromTv = true))
+        return answer.toJson()
+    }
+
+    private fun describe(a: Action, apps: List<RokuApp>): String = when (a.type) {
+        "launch_app" -> (apps.firstOrNull { it.id == a.appId }?.name ?: "App") + " opened on TV"
+        "switch_input" -> "Switched input"
+        "set_theme" -> "Repainted"
+        "set_sleep_timer" -> "Sleep timer ${a.minutes} min"
+        "cancel_sleep_timer" -> "Sleep timer off"
+        "power" -> if (a.state == "off") "TV turned off" else "TV turning on"
+        "keypress" -> a.key ?: "Button"
+        else -> a.type
     }
 
     private suspend fun score(body: JSONObject): JSONObject {

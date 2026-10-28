@@ -58,7 +58,7 @@ object Leaderboard {
             val best = db.runTransaction { tx ->
                 val old = (tx.get(ref).getLong("score") ?: 0).toInt()
                 if (points > old) {
-                    tx.set(ref, mapOf("name" to me.name, "score" to points, "updatedAt" to FieldValue.serverTimestamp()))
+                    tx.set(ref, mapOf("name" to me.name.ifEmpty { "Player" }, "score" to points, "updatedAt" to FieldValue.serverTimestamp()))
                     points
                 } else old
             }.await()

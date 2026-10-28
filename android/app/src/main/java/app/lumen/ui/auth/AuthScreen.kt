@@ -1,5 +1,6 @@
 package app.lumen.ui.auth
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,11 +35,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import app.lumen.R
 import app.lumen.auth.Auth
 import app.lumen.theme.Painting
 import app.lumen.ui.common.InkButton
@@ -181,7 +184,7 @@ private fun GoogleButton(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("G", style = T.ui(20, FontWeight.ExtraBold, Color(0xFF4285F4)))
+        Image(painterResource(R.drawable.ic_google), null, Modifier.size(22.dp))
         Spacer(Modifier.width(12.dp))
         Text("Continue with Google", style = T.ui(16, FontWeight.ExtraBold, Ink.ink))
     }

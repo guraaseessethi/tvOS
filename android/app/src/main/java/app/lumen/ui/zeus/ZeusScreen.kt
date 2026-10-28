@@ -49,7 +49,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,45 +78,46 @@ import app.lumen.ui.common.ZeusStar
 import app.lumen.ui.theme.Ink
 import app.lumen.ui.theme.T
 import app.lumen.zeus.Speech
-import app.lumen.zeus.Turn
 import app.lumen.zeus.Voice
 import app.lumen.zeus.Zeus
+import app.lumen.zeus.ZeusLog
 import app.lumen.zeus.ZeusSession
 import kotlinx.coroutines.launch
 
 private enum class Phase { Idle, Listening, Thinking, Reply }
 
-/** Spec 15.5 Zeus tab. listenRequest bumps when another screen asks to start listening. */
+/**
+ * Spec 15.5 Zeus tab. Shows the one conversation the phone and the TV share (ZeusLog), so what you
+ * ask on the TV appears here and what you ask here pops up on the TV.
+ * listenRequest bumps when another screen asks to start listening; command is text to send right
+ * away (from "Hey Zeus, open YouTube").
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ZeusScreen(painting: Painting, listenRequest: Int) {
+fun ZeusScreen(painting: Painting, listenRequest: Int, command: String?, onCommandUsed: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val tv by Lumen.tv.collectAsState()
     val settings by Lumen.settings.collectAsState()
+    val log by ZeusLog.exchanges.collectAsState()
 
     var phase by remember { mutableStateOf(Phase.Idle) }
     var transcript by remember { mutableStateOf("") }
     var level by remember { mutableFloatStateOf(0f) }
-    var reply by remember { mutableStateOf("") }
-    var receipts by remember { mutableStateOf<List<String>>(emptyList()) }
     var chips by remember { mutableStateOf(Zeus.DEFAULT_CHIPS) }
     var typed by remember { mutableStateOf("") }
-    val history = remember { mutableStateListOf<Turn>() }
     val voice = remember { Voice(context) }
+    val speaking by voice.speaking.collectAsState()
+    val scroll = rememberScrollState()
 
     fun send(text: String) {
         if (text.isBlank()) return
         transcript = text
         phase = Phase.Thinking
         scope.launch {
-            val r = ZeusSession.send(context, text, history.toList())
-            history += Turn(false, text)
-            history += Turn(true, r.answer.reply)
-            while (history.size > 12) history.removeAt(0)
-            reply = r.answer.reply
-            receipts = r.receipts
+            val r = ZeusSession.send(context, text)
             if (r.answer.chips.isNotEmpty()) chips = r.answer.chips
+            transcript = ""
             phase = Phase.Reply
             if (Lumen.settings.value.spokenReplies) voice.say(r.answer.reply)
         }
@@ -129,10 +129,14 @@ fun ZeusScreen(painting: Painting, listenRequest: Int) {
             onPartial = { transcript = it },
             onLevel = { level = it },
             onFinal = { send(it) },
-            onError = { msg -> if (phase == Phase.Listening) { phase = if (reply.isNotEmpty()) Phase.Reply else Phase.Idle; transcript = msg } },
+            onError = { msg -> if (phase == Phase.Listening) { phase = Phase.Idle; transcript = msg } },
         )
     }
-    DisposableEffect(Unit) { onDispose { speech.destroy(); voice.shutdown() } }
+    // "Hey Zeus" pauses while this screen listens, thinks or talks.
+    LaunchedEffect(phase, speaking) {
+        ZeusLog.micBusy.value = phase == Phase.Listening || phase == Phase.Thinking || speaking
+    }
+    DisposableEffect(Unit) { onDispose { speech.destroy(); voice.shutdown(); ZeusLog.micBusy.value = false } }
 
     fun listen() {
         voice.stop()
@@ -151,11 +155,14 @@ fun ZeusScreen(painting: Painting, listenRequest: Int) {
     }
 
     LaunchedEffect(listenRequest) { if (listenRequest > 0) startListening() }
+    LaunchedEffect(command) { if (!command.isNullOrBlank()) { send(command); onCommandUsed() } }
+    // New messages (from here or from the TV) scroll into view.
+    LaunchedEffect(log.size, phase) { scroll.animateScrollTo(scroll.maxValue) }
 
     Column(Modifier.fillMaxSize().background(Ink.paper)) {
         Header(painting, settings.tvName.ifEmpty { "your TV" }, tv.reachable, phase == Phase.Listening, level)
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+            Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(20.dp))
             if (!tv.reachable) {
@@ -168,54 +175,41 @@ fun ZeusScreen(painting: Painting, listenRequest: Int) {
                 }
                 Spacer(Modifier.height(16.dp))
             }
-            Eyebrow(
-                when (phase) {
-                    Phase.Idle -> "Ask Zeus"
-                    Phase.Listening -> "Listening"
-                    Phase.Thinking -> "Thinking"
-                    Phase.Reply -> "You said"
-                },
-                color = Ink.ink60,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                when {
-                    transcript.isNotEmpty() -> "“$transcript${if (phase == Phase.Listening) "…" else ""}”"
-                    phase == Phase.Listening -> "…"
-                    else -> "Open an app, change the volume, set a sleep timer or repaint the TV."
-                },
-                style = T.title(if (transcript.isNotEmpty()) 30 else 24, if (transcript.isNotEmpty()) Ink.ink else Ink.ink60),
-            )
-            if (phase == Phase.Thinking) {
-                Spacer(Modifier.height(16.dp))
-                ThinkingDots()
+
+            if (log.isEmpty() && phase == Phase.Idle && transcript.isEmpty()) {
+                Eyebrow("Ask Zeus", color = Ink.ink60)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Open an app, change the volume, set a sleep timer or repaint the TV. " +
+                        "What you ask here also shows on the TV, and what you ask on the TV shows here.",
+                    style = T.title(22, Ink.ink60),
+                )
             }
-            if (phase == Phase.Reply && reply.isNotEmpty()) {
+
+            log.takeLast(6).forEach { e ->
+                Spacer(Modifier.height(14.dp))
+                UserBubble(e.user, e.fromTv)
+                Spacer(Modifier.height(8.dp))
+                ZeusBubble(e.reply, e.receipts)
+            }
+
+            if (phase == Phase.Listening || phase == Phase.Thinking || (phase == Phase.Idle && transcript.isNotEmpty())) {
                 Spacer(Modifier.height(20.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    ZeusStar(32.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        reply,
-                        style = T.ui(16, FontWeight.SemiBold, Ink.ink),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 22.dp, bottomStart = 6.dp))
-                            .background(Color.White).padding(horizontal = 18.dp, vertical = 14.dp),
-                    )
-                }
-                receipts.forEach { r ->
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        Modifier.padding(start = 42.dp).clip(RoundedCornerShape(20.dp)).background(Color.White)
-                            .border(1.5.dp, Ink.ink.copy(alpha = 0.08f), RoundedCornerShape(20.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("✓", style = T.ui(15, FontWeight.ExtraBold, Ink.okGreen))
-                        Spacer(Modifier.width(8.dp))
-                        Text(r, style = T.ui(14, FontWeight.Bold, Ink.ink))
-                    }
+                Eyebrow(if (phase == Phase.Thinking) "Thinking" else "Listening", color = Ink.ink60)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    when {
+                        transcript.isNotEmpty() -> "\u201C$transcript${if (phase == Phase.Listening) "…" else ""}\u201D"
+                        else -> "…"
+                    },
+                    style = T.title(28, Ink.ink),
+                )
+                if (phase == Phase.Thinking) {
+                    Spacer(Modifier.height(14.dp))
+                    ThinkingDots()
                 }
             }
+
             Spacer(Modifier.height(24.dp))
             Eyebrow("Try", color = Ink.ink60)
             Spacer(Modifier.height(10.dp))
@@ -255,6 +249,48 @@ fun ZeusScreen(painting: Painting, listenRequest: Int) {
             onRelease = { held -> if (held) speech.stop() },
         )
         Spacer(Modifier.height(104.dp))
+    }
+}
+
+/** What you said, in yellow on the right; a small "On the TV" tag when it was asked on the TV. */
+@Composable
+private fun UserBubble(text: String, fromTv: Boolean) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+        if (fromTv) Text("ON THE TV", style = T.eyebrow(10, Ink.ink60), modifier = Modifier.padding(end = 6.dp, bottom = 4.dp))
+        Text(
+            text,
+            style = T.ui(16, FontWeight.Bold, Ink.ink),
+            modifier = Modifier
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 22.dp, bottomEnd = 6.dp))
+                .background(Ink.yellow).padding(horizontal = 18.dp, vertical = 12.dp),
+        )
+    }
+}
+
+@Composable
+private fun ZeusBubble(reply: String, receipts: List<String>) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        ZeusStar(32.dp)
+        Spacer(Modifier.width(10.dp))
+        Text(
+            reply,
+            style = T.ui(16, FontWeight.SemiBold, Ink.ink),
+            modifier = Modifier
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 22.dp, bottomStart = 6.dp))
+                .background(Color.White).padding(horizontal = 18.dp, vertical = 14.dp),
+        )
+    }
+    receipts.forEach { r ->
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.padding(start = 42.dp).clip(RoundedCornerShape(20.dp)).background(Color.White)
+                .border(1.5.dp, Ink.ink.copy(alpha = 0.08f), RoundedCornerShape(20.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("✓", style = T.ui(15, FontWeight.ExtraBold, Ink.okGreen))
+            Spacer(Modifier.width(8.dp))
+            Text(r, style = T.ui(14, FontWeight.Bold, Ink.ink))
+        }
     }
 }
 

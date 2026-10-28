@@ -71,10 +71,12 @@ object ActionRunner {
         return receipts
     }
 
-    /** Spec 15.6: after a voice exchange, the TV's Zeus panel shows it too (only while Lumen is open). */
+    /**
+     * Spec 15.6 + 7.1: every phone exchange also shows on the TV. Lumen opens its Zeus panel for 8 s.
+     * If Lumen isn't on screen the TV ignores /input, which is fine.
+     */
     suspend fun mirrorToTv(user: String, reply: String, receipts: List<String>) {
         val ip = Lumen.ip() ?: return
-        if (Lumen.tv.value.screen != Screen.Lumen) return
         val json = JSONObject().put("user", user.take(300)).put("reply", reply.take(500)).put("receipts", JSONArray(receipts.take(4)))
         Lumen.ecp.input(ip, mapOf("zeus" to json.toString()))
     }

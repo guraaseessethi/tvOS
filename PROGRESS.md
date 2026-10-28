@@ -58,4 +58,24 @@
   - Games send each finished run to the bridge, and the TV toasts your leaderboard rank.
   - Lumen accepts `?theme=` (the phone repaints the TV, or follows the weather) and `?zeus=` (phone exchanges shown in the Zeus panel).
 - **Tests:** 25 JVM unit tests in `android/app/src/test`, all passing. They were run with kotlinc + JUnit, because Google's Maven host is blocked in the cloud session, so Gradle couldn't run there. `bsc` lint on `roku/` reports no new issues.
-- **Not done yet:** "Hey Zeus" wake word, the home-screen widget, and timer handoff from the TV (15.6 phase 2).
+
+### Follow-up (28 Oct, owner feedback)
+- **Zeus failing:**
+  - Gemini 2.5's thinking was using up the 400-token budget, so answers came back empty. The budget is now 2048.
+  - Models fall back in order: 2.5 Flash → 2.5 Flash-Lite → flash-latest → 2.0 Flash.
+  - Answers wrapped in ```json fences or plain text are accepted.
+  - **Setup → Check Zeus** shows the real error.
+- **Zeus on both sides:**
+  - One shared conversation (`ZeusLog`). Phone exchanges open the TV's Zeus panel for 8 s (any key keeps it open).
+  - The TV's questions appear on the phone with an "On the TV" tag.
+- **"Hey Zeus":** on-device speech recognition with a sound-alike-tolerant wake phrase, while the app is in the foreground. It keeps the screen on and pauses while Zeus is listening or talking.
+- **Widget:** 2x2, with the painting, Zeus and play/pause.
+- **Timer handoff (15.6):** the phone is the bridge, so the TV's sleep sheet and Zeus already set the phone's timer through `/sleep`. The phone now reports changes back with `/input?sleep=`. No backend linking is needed.
+- **Accounts:**
+  - The name no longer shows as the email prefix after sign-up.
+  - Google sign-in uses the Google name, has a bottom-sheet fallback, and gives clear SHA-1 / config errors.
+  - The official multicolour Google "G" is on the button.
+  - Onboarding asks "What should Zeus call you?"
+- **Keyboard:** a "keyboard down" button floats above the keyboard. The remote's Type box has arrow keys and OK.
+- **QR pairing:** the TV's hello card shows `lumen://connect?ip=…&name=…` (image from api.qrserver.com). "Find your Roku" has **Scan QR on the TV** (Google code scanner, no camera permission).
+- **Tests:** 34 JVM tests, all passing. `bsc` reports no new TV issues.

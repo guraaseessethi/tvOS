@@ -78,6 +78,8 @@ dependencies {
     implementation("androidx.credentials:credentials:1.5.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Google's ready-made QR scanner (no camera permission needed; Play services shows the camera).
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     // Plain JVM tests for the pure logic (app/src/test). Real org.json and an XML pull parser
     // replace android.jar's stubs on the test classpath.

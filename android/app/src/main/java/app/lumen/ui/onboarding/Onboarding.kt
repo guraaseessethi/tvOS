@@ -54,7 +54,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import app.lumen.Lumen
 import app.lumen.TvState
+import app.lumen.auth.Auth
 import app.lumen.ecp.FoundTv
+import app.lumen.ecp.QrScan
 import app.lumen.ecp.SsdpDiscovery
 import app.lumen.theme.Painting
 import app.lumen.ui.common.CheckRow
@@ -120,14 +122,30 @@ fun Onboarding(painting: Painting, name: String, onDone: () -> Unit) {
 
 @Composable
 private fun Welcome(name: String, next: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Prefilled from the account (your Google name, or what you typed at sign-up), and editable.
+    var typed by rememberSaveable(name) { mutableStateOf(name.substringBefore(" ").ifEmpty { name }) }
+    var error by remember { mutableStateOf<String?>(null) }
     ZeusMark(64.dp)
-    Text(if (name.isNotEmpty()) "Hi $name. Your TV, calmer." else "Your TV, calmer.", style = T.title(32, Ink.ink))
+    Text("Your TV, calmer.", style = T.title(32, Ink.ink))
     Text(
         "Lumen turns your Roku into one calm painted screen. This phone becomes its remote, opens Lumen when the TV " +
             "turns on, and is how you talk to Zeus.",
         style = T.ui(16, FontWeight.SemiBold, Ink.ink60),
     )
-    InkButton("Continue", Modifier.fillMaxWidth(), onClick = next)
+    if (Auth.current(context) != null) {
+        Text("What should Zeus call you?", style = T.ui(16, FontWeight.ExtraBold, Ink.ink))
+        PaperField(typed, { typed = it }, "Your name", ime = ImeAction.Done)
+        error?.let { Text(it, style = T.ui(14, FontWeight.Bold, Ink.red)) }
+    }
+    InkButton("Continue", Modifier.fillMaxWidth()) {
+        if (Auth.current(context) == null) { next(); return@InkButton }
+        scope.launch {
+            error = if (typed.trim() != name) Auth.rename(context, typed) else null
+            if (error == null) next()
+        }
+    }
 }
 
 @Composable
@@ -182,7 +200,19 @@ private fun FindTv(next: () -> Unit) {
             Text("Use", style = T.ui(15, FontWeight.ExtraBold, Ink.ink))
         }
     }
-    if (!searching) OutlineButton("Search again") { attempt++ }
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (!searching) OutlineButton("Search again") { attempt++ }
+        OutlineButton("Scan QR on the TV") {
+            scope.launch {
+                when (val r = QrScan.scan(context)) {
+                    is QrScan.Result.Found -> pick(r.target.ip)
+                    is QrScan.Result.NotLumen -> error = "That QR code isn't Lumen's. Scan the one under the clock on the TV."
+                    is QrScan.Result.Failed -> error = r.reason
+                    QrScan.Result.Cancelled -> {}
+                }
+            }
+        }
+    }
     Text("Or type the TV's IP address (Roku Settings > Network > About)", style = T.ui(14, FontWeight.SemiBold, Ink.ink60))
     PaperField(manual, { manual = it.trim() }, "e.g. 192.168.2.33", keyboard = KeyboardType.Uri, ime = ImeAction.Done)
     error?.let { Text(it, style = T.ui(14, FontWeight.Bold, Ink.red)) }

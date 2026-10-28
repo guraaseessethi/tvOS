@@ -72,5 +72,21 @@
         <receiver
             android:name=".watcher.NotificationActions"
             android:exported="false" />
+
+        <receiver
+            android:name=".watcher.LumenWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
+
+        <!-- Lets Play services fetch the QR scanner ahead of first use. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
     </application>
 </manifest>

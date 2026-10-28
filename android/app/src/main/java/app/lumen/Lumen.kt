@@ -158,6 +158,7 @@ object Lumen {
         prefs.setOverride(p.key, end)
         prefs.setTheme(p.key)
         sendTheme(p)
+        app.lumen.watcher.LumenWidget.refresh(context)
     }
 
     suspend fun clearOverride() {
@@ -173,8 +174,15 @@ object Lumen {
 
     // ---- sleep timer (runs in TvWatcherService) ----
 
+    /**
+     * The sleep timer always lives on the phone, whoever set it (spec 15.6 timer handoff): the TV's
+     * sleep sheet and its Zeus reach it through the bridge's POST /sleep. The TV is told so its
+     * sheet shows the current timer.
+     */
     suspend fun setSleep(minutes: Int) {
         prefs.setSleepAt(if (minutes > 0) System.currentTimeMillis() + minutes * 60_000L else 0)
+        ip()?.let { ecp.input(it, mapOf("sleep" to minutes.toString())) }
+        app.lumen.watcher.LumenWidget.refresh(context)
     }
 
     fun sleepMinutesLeft(): Int {

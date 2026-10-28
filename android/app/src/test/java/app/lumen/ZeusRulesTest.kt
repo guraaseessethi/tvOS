@@ -83,4 +83,22 @@ class ZeusRulesTest {
         assertEquals(1, json.getJSONArray("actions").getJSONObject(0).getInt("repeat"))
         assertEquals("Go home", json.getJSONArray("chips").getString(0))
     }
+
+    @Test fun readsJsonWrappedInFencesOrWords() {
+        val fenced = "```json\n{\"reply\":\"Opening Netflix.\",\"actions\":[{\"type\":\"launch_app\",\"appId\":\"12\"}],\"chips\":[]}\n```"
+        val a = ZeusRules.parse(fenced, apps)
+        assertEquals("Opening Netflix.", a.reply)
+        assertEquals(listOf(Action("launch_app", appId = "12")), a.actions)
+        assertEquals("Hi.", ZeusRules.parse("Sure! {\"reply\":\"Hi.\",\"actions\":[],\"chips\":[]} Hope that helps.", apps).reply)
+    }
+
+    @Test fun plainTextBecomesTheReply() {
+        val a = ZeusRules.parse("I can't see what's playing, but I can open an app for you.", apps)
+        assertEquals("I can't see what's playing, but I can open an app for you.", a.reply)
+        assertTrue(a.actions.isEmpty())
+    }
+
+    @Test fun brokenJsonFallsBackToText() {
+        assertEquals("{\"reply\": \"Opening", ZeusRules.parse("{\"reply\": \"Opening", apps).reply)
+    }
 }

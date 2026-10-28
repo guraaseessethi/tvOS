@@ -22,6 +22,7 @@ data class Settings(
     val onboarded: Boolean = false,
     val autoOpen: Boolean = true,
     val spokenReplies: Boolean = true,
+    val heyZeus: Boolean = false,
     val lockRemote: Boolean = true,
     val followWeather: Boolean = true,
     val themeKey: String = "starry",
@@ -48,6 +49,7 @@ class Prefs(private val context: Context) {
         val onboarded = booleanPreferencesKey("onboarded")
         val autoOpen = booleanPreferencesKey("autoOpen")
         val spokenReplies = booleanPreferencesKey("spokenReplies")
+        val heyZeus = booleanPreferencesKey("heyZeus")
         val lockRemote = booleanPreferencesKey("lockRemote")
         val followWeather = booleanPreferencesKey("followWeather")
         val themeKey = stringPreferencesKey("theme")
@@ -78,6 +80,7 @@ class Prefs(private val context: Context) {
             onboarded = p[K.onboarded] ?: d.onboarded,
             autoOpen = p[K.autoOpen] ?: d.autoOpen,
             spokenReplies = p[K.spokenReplies] ?: d.spokenReplies,
+            heyZeus = p[K.heyZeus] ?: d.heyZeus,
             lockRemote = p[K.lockRemote] ?: d.lockRemote,
             followWeather = p[K.followWeather] ?: d.followWeather,
             themeKey = p[K.themeKey] ?: d.themeKey,
@@ -100,6 +103,7 @@ class Prefs(private val context: Context) {
     suspend fun setOnboarded(v: Boolean) = context.store.edit { it[K.onboarded] = v }
     suspend fun setAutoOpen(v: Boolean) = context.store.edit { it[K.autoOpen] = v }
     suspend fun setSpokenReplies(v: Boolean) = context.store.edit { it[K.spokenReplies] = v }
+    suspend fun setHeyZeus(v: Boolean) = context.store.edit { it[K.heyZeus] = v }
     suspend fun setLockRemote(v: Boolean) = context.store.edit { it[K.lockRemote] = v }
     suspend fun setFollowWeather(v: Boolean) = context.store.edit { it[K.followWeather] = v }
     suspend fun setTheme(key: String) = context.store.edit { it[K.themeKey] = key }

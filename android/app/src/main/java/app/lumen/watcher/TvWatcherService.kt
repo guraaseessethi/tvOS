@@ -218,6 +218,7 @@ class TvWatcherService : Service() {
                 shown = p
                 Lumen.sendTheme(p)
             }
+            LumenWidget.refresh(this@TvWatcherService)
             delay(30 * 60_000L)
         }
     }

@@ -1,5 +1,9 @@
 package app.lumen.ui.setup
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import app.lumen.Lumen
 import app.lumen.auth.Account
 import app.lumen.auth.Auth
@@ -55,6 +60,7 @@ import app.lumen.ui.onboarding.askBatteryExemption
 import app.lumen.ui.onboarding.batteryExempt
 import app.lumen.ui.theme.Ink
 import app.lumen.ui.theme.T
+import app.lumen.zeus.ZeusBrain
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -73,6 +79,10 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
     LaunchedEffect(Unit) {
         while (true) { battery = batteryExempt(context); delay(1500) }
     }
+    val micForWake = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) scope.launch { Lumen.prefs.setHeyZeus(true) } else toast("Allow the microphone for Hey Zeus")
+    }
+    var zeusCheck by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
         Column(Modifier.padding(horizontal = 20.dp)) {
@@ -115,6 +125,14 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
                 )
             }
             Divider()
+            Toggle("Hey Zeus", "Listens for \"Hey Zeus\" while the Lumen app is open, and keeps the screen on. Good for a phone that lives by the TV.", s.heyZeus) {
+                if (it && ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    micForWake.launch(Manifest.permission.RECORD_AUDIO)
+                } else {
+                    scope.launch { Lumen.prefs.setHeyZeus(it) }
+                }
+            }
+            Divider()
             Toggle("Spoken replies", "Zeus reads his answers out loud.", s.spokenReplies) { scope.launch { Lumen.prefs.setSpokenReplies(it) } }
             Divider()
             Toggle("Remote on lock screen", "Keeps Play/Pause and a Zeus button in your notifications.", s.lockRemote) { scope.launch { Lumen.prefs.setLockRemote(it) } }
@@ -155,6 +173,18 @@ fun SetupScreen(painting: Painting, account: Account?, onChangeTv: () -> Unit, t
                     )
                     Text("Cancel", style = T.ui(15, FontWeight.ExtraBold, Ink.ink), modifier = Modifier.clickable { scope.launch { Lumen.setSleep(0) } }.padding(6.dp))
                 }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Eyebrow("Zeus", color = Ink.ink60)
+            Spacer(Modifier.height(8.dp))
+            OutlineButton(if (zeusCheck == "…") "Checking…" else "Check Zeus") {
+                zeusCheck = "…"
+                scope.launch { zeusCheck = ZeusBrain.check(context) }
+            }
+            zeusCheck?.takeIf { it != "…" }?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, style = T.ui(14, FontWeight.SemiBold, if (it.startsWith("Zeus is working")) Ink.okGreen else Ink.red))
             }
 
             Spacer(Modifier.height(18.dp))

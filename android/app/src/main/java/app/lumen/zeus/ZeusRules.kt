@@ -5,6 +5,24 @@ import org.json.JSONObject
 
 /** Spec 9.2 safety net for the brain's answers. Pure, so it unit-tests on the JVM. */
 object ZeusRules {
+    /**
+     * The JSON object in a model reply, tolerating ```json fences or a sentence around it.
+     * Returns null when there is no object at all (then the text itself is the reply).
+     */
+    fun extractJson(text: String): JSONObject? {
+        val start = text.indexOf('{')
+        val end = text.lastIndexOf('}')
+        if (start < 0 || end <= start) return null
+        return runCatching { JSONObject(text.substring(start, end + 1)) }.getOrNull()
+    }
+
+    /** Turns any model reply into an Answer: JSON when it's there, plain words otherwise. */
+    fun parse(text: String, apps: List<RokuApp>): Answer {
+        extractJson(text)?.let { return clean(it, apps) }
+        val plain = text.replace(Regex("```[a-z]*"), "").replace(Regex("\\s+"), " ").trim().take(240)
+        return Answer(plain.ifEmpty { "Done." })
+    }
+
     /** Keeps only well-formed actions with real IDs (spec 9.2: ignore anything else). */
     fun clean(o: JSONObject, apps: List<RokuApp>): Answer {
         val appIds = apps.filter { !it.isInput }.map { it.id }.toSet()
