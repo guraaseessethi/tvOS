@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spec 6.7: a quiet museum label, right-aligned at x=1824. Not focusable. -->
+<component name="PaintingCredit" extends="Group">
+  <interface>
+    <field id="theme" type="string" value="starry" onChange="onTheme" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      th = LumenTheme()
+      m.name = m.top.createChild("Label")
+      m.name.font = LumenFont("Fraunces-Italic", 30)
+      m.name.color = th.white
+      m.name.horizAlign = "right"
+      m.name.width = 1200
+      m.name.translation = [1824 - 1200, 944]
+      m.credit = m.top.createChild("Label")
+      m.credit.font = LumenFont("Manrope-ExtraBold", 18)
+      m.credit.color = WithAlpha(th.white, 0.78)
+      m.credit.horizAlign = "right"
+      m.credit.width = 1200
+      m.credit.translation = [1824 - 1200, 986]
+      onTheme()
+  end sub
+
+  sub onTheme()
+      t = LumenTheme().themes[m.top.theme]
+      if t = invalid then return
+      m.name.text = t.painting
+      m.credit.text = "AFTER VINCENT VAN GOGH · PAINTED FOR " + UCase(t.weather)
+  end sub
+  ]]>
+  </script>
+</component>

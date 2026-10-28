@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Flutter: the red bird flaps on OK and threads the gaps between painted columns at night. -->
+<component name="BirdGame" extends="Group">
+  <interface>
+    <field id="theme" type="string" onChange="onTheme" />
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="key" type="string" alwaysNotify="true" onChange="onKey" />
+    <field id="state" type="string" value="ready" />
+    <field id="points" type="integer" value="0" />
+    <field id="best" type="integer" value="0" />
+    <field id="newBest" type="boolean" value="false" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript" uri="pkg:/components/games/GameKit.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.W = LumenTheme().gameW
+      m.H = LumenTheme().gameH
+      m.gap = 150
+      m.colW = 84
+      m.colH = 402
+      m.bw = 66
+      m.bh = 57
+
+      kitInit("bird")
+      m.sky = m.top.createChild("Poster")
+      ' The painting covers the stage at 16:9; show its sky band.
+      m.sky.width = m.W
+      m.sky.height = m.W * 9 / 16
+      m.sky.translation = [0, -150]
+      m.scrim = m.top.createChild("Rectangle")
+      m.scrim.width = m.W
+      m.scrim.height = m.H
+      kitStripAnim(m.top, "pkg:/images/games/town_night.png", 1400, 130, 172, 22)
+
+      ' Pool of column pairs, reused as they leave the screen.
+      m.cols = m.top.createChild("Group")
+      m.pool = []
+      for i = 0 to 3
+          g = m.cols.createChild("Group")
+          top = g.createChild("Poster")
+          top.uri = "pkg:/images/games/column_down.png"
+          top.width = m.colW
+          top.height = m.colH
+          bottom = g.createChild("Poster")
+          bottom.uri = "pkg:/images/games/column_up.png"
+          bottom.width = m.colW
+          bottom.height = m.colH
+          g.visible = false
+          m.pool.Push({ g: g, top: top, bottom: bottom, x: 0.0, gapY: 0, used: false, passed: false })
+      end for
+      kitStripAnim(m.top, "pkg:/images/games/hills_night.png", 1400, 80, 262, 70)
+
+      frames = ["pkg:/images/games/bird_0.png", "pkg:/images/games/bird_1.png", "pkg:/images/games/bird_2.png"]
+      m.bird = kitSprite(m.top, frames, m.bw, m.bh)
+      reset()
+  end sub
+
+  sub onTheme()
+      m.sky.uri = "pkg:/images/wall/wall_" + m.top.theme + ".jpg"
+  end sub
+
+  sub onDeep()
+      m.scrim.color = WithAlpha(m.top.deep, 0.2)
+  end sub
+
+  sub reset()
+      for each c in m.pool
+          c.used = false
+          c.g.visible = false
+      end for
+      m.x = 260
+      m.y = 130
+      m.vy = 0
+      m.speed = 170
+      m.nextCol = 230
+      m.anim = 1
+      m.bird.g.translation = [m.x, m.y]
+      m.bird.g.rotation = 0
+      kitFrame(m.bird, 1)
+  end sub
+
+  sub begin()
+      flap()
+  end sub
+
+  sub action(k as string)
+      if k = "OK" then flap()
+  end sub
+
+  sub flap()
+      m.vy = -420
+      m.anim = 0
+  end sub
+
+  sub addColumn()
+      for each c in m.pool
+          if not c.used
+              c.used = true
+              c.passed = false
+              c.x = m.W * 1.0
+              c.gapY = 50 + Rnd(m.H - 50 - 74 - m.gap)
+              c.top.translation = [0, c.gapY - m.colH]
+              c.bottom.translation = [0, c.gapY + m.gap]
+              c.g.translation = [c.x, 0]
+              c.g.visible = true
+              return
+          end if
+      end for
+  end sub
+
+  sub advance(dt as float)
+      m.vy = m.vy + 1300 * dt
+      if m.vy > 600 then m.vy = 600
+      m.y = m.y + m.vy * dt
+      m.bird.g.translation = [m.x, m.y]
+      r = -m.vy / 1000.0
+      if r < -0.7 then r = -0.7
+      if r > 0.4 then r = 0.4
+      m.bird.g.rotation = r
+      ' Wings beat right after a flap, then glide.
+      m.anim = m.anim + dt
+      if m.anim < 0.3 then kitFrame(m.bird, Int(m.anim / 0.06) mod 3) else kitFrame(m.bird, 1)
+
+      m.speed = m.speed + 4 * dt
+      if m.speed > 300 then m.speed = 300
+      m.nextCol = m.nextCol - m.speed * dt
+      if m.nextCol <= 0
+          addColumn()
+          m.nextCol = 300
+      end if
+
+      bx = m.x + 12
+      by = m.y + 10
+      bw = m.bw - 24
+      bh = m.bh - 18
+      hit = (m.y < -30) or (m.y + m.bh - 8 > 300)
+      for each c in m.pool
+          if c.used
+              c.x = c.x - m.speed * dt
+              c.g.translation = [c.x, 0]
+              if not c.passed and c.x + m.colW < m.x
+                  c.passed = true
+                  m.top.points = m.top.points + 1
+              end if
+              ' Cap (full width) near the gap, shaft (narrower) beyond it.
+              if kitHit(bx, by, bw, bh, c.x + 2, c.gapY - 38, m.colW - 4, 38) then hit = true
+              if kitHit(bx, by, bw, bh, c.x + 11, -500, m.colW - 22, c.gapY + 500) then hit = true
+              if kitHit(bx, by, bw, bh, c.x + 2, c.gapY + m.gap, m.colW - 4, 38) then hit = true
+              if kitHit(bx, by, bw, bh, c.x + 11, c.gapY + m.gap, m.colW - 22, 500) then hit = true
+              if c.x + m.colW < -10
+                  c.used = false
+                  c.g.visible = false
+              end if
+          end if
+      end for
+      if hit then kitOver()
+  end sub
+  ]]>
+  </script>
+</component>

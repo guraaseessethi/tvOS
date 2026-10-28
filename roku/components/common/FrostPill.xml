@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A 64px-high frosted control (spec 3.2, 6.6): deep at 34% + hairline stroke, optional glyph and label.
+  round=true makes a 64x64 circle button. Focus = yellow fill, ink glyph and text (spec 11).
+  style="yellow" is the always-yellow Ask Zeus pill (6.3); its focus is a white ring.
+  Focus is white liquid glass: white tint + the glass_pill highlight overlay. Yellow is only an accent.
+-->
+<component name="FrostPill" extends="Group">
+  <interface>
+    <field id="glyph" type="string" onChange="layout" />
+    <field id="text" type="string" onChange="layout" />
+    <field id="round" type="boolean" value="false" onChange="layout" />
+    <field id="style" type="string" value="frost" onChange="paint" />
+    <field id="deep" type="color" onChange="paint" />
+    <field id="focused" type="boolean" value="false" onChange="paint" />
+    <!-- solid=true: near-opaque deep backing for controls over busy painting (Ask Zeus, Settings). -->
+    <field id="solid" type="boolean" value="false" onChange="paint" />
+    <field id="width" type="float" value="64" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.th = LumenTheme()
+      m.body = m.top.createChild("Group")
+      m.ringPill = m.body.createChild("Poster")
+      m.ringPill.uri = "pkg:/images/ui/pill_64.9.png"
+      m.ringPill.translation = [-5, -5]
+      m.ringPill.height = 74
+      m.ringPill.blendColor = m.th.white
+      m.ringPill.visible = false
+      m.fill = m.body.createChild("Poster")
+      m.fill.uri = "pkg:/images/ui/pill_64.9.png"
+      m.fill.height = 64
+      m.stroke = m.body.createChild("Poster")
+      m.stroke.uri = "pkg:/images/ui/pill_64_stroke.9.png"
+      m.stroke.height = 64
+      m.glass = m.body.createChild("Poster")
+      m.glass.uri = "pkg:/images/ui/glass_pill_64.9.png"
+      m.glass.height = 64
+      m.glass.visible = false
+      m.mark = m.body.createChild("Poster")
+      m.mark.width = 30
+      m.mark.height = 30
+      m.label = m.body.createChild("Label")
+      m.label.font = LumenFont("Manrope-Bold", 24)
+      m.label.height = 64
+      m.label.vertAlign = "center"
+      layout()
+  end sub
+
+  sub layout()
+      yellow = (m.top.style = "yellow")
+      if yellow
+          m.label.font = LumenFont("Manrope-ExtraBold", 24)
+          m.mark.width = 48
+          m.mark.height = 48
+      end if
+      m.mark.uri = m.top.glyph
+      m.mark.visible = (m.top.glyph <> "")
+      m.label.text = m.top.text
+      if m.top.round or m.top.text = ""
+          w = 64
+          m.mark.translation = [(64 - m.mark.width) / 2, (64 - m.mark.height) / 2]
+          m.label.visible = false
+      else
+          m.label.visible = true
+          m.label.width = 0
+          tw = m.label.boundingRect().width
+          if tw <= 0 then tw = Len(m.top.text) * 14
+          m.label.width = tw + 2
+          if yellow
+              ' Spec 6.3: 8 inset, 48 mark, 12 gap, label, 26 right padding.
+              m.mark.translation = [8, 8]
+              m.label.translation = [68, 0]
+              w = 68 + tw + 26
+          else
+              ' Spec 6.6: 20 left, 30 glyph, 12 gap, label, 24 right.
+              x = 20
+              if m.mark.visible
+                  m.mark.translation = [20, 17]
+                  x = 62
+              end if
+              m.label.translation = [x, 0]
+              w = x + tw + 24
+          end if
+      end if
+      m.fill.width = w
+      m.stroke.width = w
+      m.glass.width = w
+      m.ringPill.width = w + 10
+      m.top.width = w
+      m.body.scaleRotateCenter = [w / 2, 32]
+      paint()
+  end sub
+
+  sub paint()
+      if m.fill = invalid then return
+      f = m.top.focused
+      ' style="yellow" (Ask Zeus) keeps its yellow Zeus mark as the only accent.
+      accent = (m.top.style = "yellow")
+      m.ringPill.visible = false
+      m.glass.visible = true
+      if f
+          ' Focus: white liquid glass with ink text (yellow is reserved for accents).
+          m.fill.blendColor = m.th.white
+          m.fill.opacity = m.th.focusOpacity
+          m.stroke.visible = false
+          m.glass.opacity = 1
+          m.label.color = m.th.ink
+          if accent then m.mark.blendColor = m.th.white else m.mark.blendColor = m.th.ink
+          m.body.scale = [1.04, 1.04]
+      else
+          m.fill.blendColor = m.top.deep
+          if m.top.solid then m.fill.opacity = 0.82 else m.fill.opacity = m.th.frostOpacity
+          m.stroke.visible = true
+          m.glass.opacity = 0.55
+          m.label.color = m.th.white
+          m.mark.blendColor = m.th.white
+          m.body.scale = [1, 1]
+      end if
+  end sub
+  ]]>
+  </script>
+</component>

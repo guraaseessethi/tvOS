@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spec 6.1 layer stack, 11 focus model and key routing, overlay stack. -->
+<component name="MainScene" extends="Scene">
+  <interface>
+    <field id="launchArgs" type="assocarray" />
+    <field id="inputArgs" type="assocarray" alwaysNotify="true" onChange="onInput" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript" uri="pkg:/components/MainScene.brs" />
+</component>

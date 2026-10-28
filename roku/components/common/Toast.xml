@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spec 6.8: one ink toast at a time, yellow text, 2.4s, never focusable. -->
+<component name="Toast" extends="Group">
+  <interface>
+    <field id="message" type="string" alwaysNotify="true" onChange="show" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      th = LumenTheme()
+      m.box = m.top.createChild("Group")
+      m.box.id = "box"
+      m.box.opacity = 0
+      bg = m.box.createChild("Poster")
+      bg.uri = "pkg:/images/ui/pill_64.9.png"
+      bg.blendColor = th.ink
+      bg.width = 520
+      bg.height = 64
+      m.label = m.box.createChild("Label")
+      m.label.font = LumenFont("Manrope-ExtraBold", 24)
+      m.label.color = th.yellow
+      m.label.width = 520
+      m.label.height = 64
+      m.label.horizAlign = "center"
+      m.label.vertAlign = "center"
+
+      m.animIn = m.top.createChild("Animation")
+      m.animIn.duration = 0.3
+      m.animIn.easeFunction = "outCubic"
+      a = m.animIn.createChild("FloatFieldInterpolator")
+      a.fieldToInterp = "box.opacity"
+      a.key = [0, 1]
+      a.keyValue = [0, 1]
+      b = m.animIn.createChild("Vector2DFieldInterpolator")
+      b.fieldToInterp = "box.translation"
+      b.key = [0, 1]
+      b.keyValue = [[700, 90], [700, 80]]
+
+      m.animOut = m.top.createChild("Animation")
+      m.animOut.duration = 0.25
+      m.animOut.easeFunction = "inCubic"
+      c = m.animOut.createChild("FloatFieldInterpolator")
+      c.fieldToInterp = "box.opacity"
+      c.key = [0, 1]
+      c.keyValue = [1, 0]
+
+      m.timer = m.top.createChild("Timer")
+      m.timer.duration = 2.4
+      m.timer.observeField("fire", "hide")
+  end sub
+
+  sub show()
+      m.label.text = m.top.message
+      m.animOut.control = "stop"
+      m.animIn.control = "start"
+      m.timer.control = "stop"
+      m.timer.control = "start"
+  end sub
+
+  sub hide()
+      m.animOut.control = "start"
+  end sub
+  ]]>
+  </script>
+</component>

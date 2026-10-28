@@ -1,0 +1,11 @@
+title=Lumen
+major_version=1
+minor_version=0
+build_version=30
+ui_resolutions=fhd
+mm_icon_focus_fhd=pkg:/images/brand/poster_fhd_540x405.png
+mm_icon_focus_hd=pkg:/images/brand/poster_hd_290x218.png
+splash_screen_fhd=pkg:/images/brand/splash_fhd.jpg
+splash_color=#141844
+splash_min_time=0
+supports_input_launch=1

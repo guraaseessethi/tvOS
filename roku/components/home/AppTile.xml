@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec 5.3 + 6.5: an installed app's own ECP icon inside a painted pastel frame,
+  or a Lumen tile (Add app). Focus = scale 1.10 about the centre, up 10px, yellow ring + glow.
+-->
+<component name="AppTile" extends="Group">
+  <interface>
+    <!-- { id, name, type } ; id "lumen.add" is the Add app tile -->
+    <field id="app" type="assocarray" onChange="onApp" />
+    <field id="focused" type="boolean" value="false" onChange="onFocus" />
+    <field id="baseX" type="float" value="0" onChange="placeX" />
+    <field id="iconBase" type="string" />
+    <field id="pressed" type="boolean" alwaysNotify="true" onChange="onPress" />
+    <field id="reduceMotion" type="boolean" value="false" />
+    <field id="photos" type="array" onChange="onPhotos" />
+    <!-- Edit Home: the card being moved lifts higher and larger (spec 13.4). -->
+    <field id="lifted" type="boolean" value="false" onChange="onLifted" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      th = LumenTheme()
+      m.body = m.top.createChild("Group")
+      m.body.scaleRotateCenter = [th.tileW / 2, th.tileH / 2]
+
+      m.glow = m.body.createChild("Poster")
+      m.glow.uri = "pkg:/images/ui/focus_glow_tile.png"
+      m.glow.translation = [-120, -120]
+      m.glow.width = 528
+      m.glow.height = 432
+      m.glow.opacity = 0
+
+      m.shadow = m.body.createChild("Poster")
+      m.shadow.uri = "pkg:/images/ui/tile_shadow.png"
+      m.shadow.translation = [-60, -52]
+      m.shadow.width = 408
+      m.shadow.height = 332
+
+      ' Real apps: the logo, background removed by the bridge, sits straight on a painted card.
+      m.card = m.body.createChild("Poster")
+      m.card.width = th.tileW
+      m.card.height = th.tileH
+
+      ' Window fill for Lumen tiles, the app icon for real apps (spec 5.3: 208x156 at +40,+18).
+      m.fill = m.body.createChild("Poster")
+      m.fill.uri = "pkg:/images/ui/card_r28.9.png"
+      m.fill.blendColor = th.paper
+      m.fill.translation = [40, 18]
+      m.fill.width = 208
+      m.fill.height = 156
+      m.fill.visible = false
+
+      ' The bridge sends logos on a transparent 288x192 canvas, so they cover the whole card.
+      m.icon = m.body.createChild("Poster")
+      m.icon.width = th.tileW
+      m.icon.height = th.tileH
+      m.icon.loadDisplayMode = "scaleToFit"
+
+      ' Memories: two full-card photos (rounded by the bridge), crossfading like a slideshow.
+      m.photoA = m.body.createChild("Poster")
+      m.photoB = m.body.createChild("Poster")
+      m.photoA.id = "photoA"
+      m.photoB.id = "photoB"
+      for each p in [m.photoA, m.photoB]
+          p.width = th.tileW
+          p.height = th.tileH
+          p.opacity = 0
+      end for
+
+      ' Memories with no photos yet: an italic wordmark under the picture glyph.
+      m.word = m.body.createChild("Label")
+      m.word.font = LumenFont("Fraunces-Italic", 30)
+      m.word.color = th.ink
+      m.word.horizAlign = "center"
+      m.word.translation = [0, 118]
+      m.word.width = th.tileW
+      m.word.height = 40
+      m.word.visible = false
+
+      m.glyph = m.body.createChild("Poster")
+      m.glyph.translation = [112, 64]
+      m.glyph.width = 64
+      m.glyph.height = 64
+      m.glyph.blendColor = th.ink
+      m.glyph.visible = false
+
+      m.frame = m.body.createChild("Poster")
+      m.frame.width = th.tileW
+      m.frame.height = th.tileH
+
+      m.ring = m.body.createChild("Poster")
+      m.ring.uri = "pkg:/images/ui/focus_ring_tile.png"
+      m.ring.translation = [-8, -8]
+      m.ring.width = 304
+      m.ring.height = 208
+      m.ring.opacity = 0
+
+      buildAnims()
+  end sub
+
+  sub buildAnims()
+      ' Roku has no outBack easing: the overshoot is written into the keys (PLAN 6.1).
+      m.focusIn = m.top.createChild("Animation")
+      m.focusIn.duration = 0.22
+      m.focusIn.easeFunction = "outCubic"
+      m.inScale = m.focusIn.createChild("Vector2DFieldInterpolator")
+      m.inScale.fieldToInterp = "body.scale"
+      m.inScale.key = [0, 0.6, 1]
+      m.inScale.keyValue = [[1, 1], [1.13, 1.13], [1.1, 1.1]]
+      m.inPos = m.focusIn.createChild("Vector2DFieldInterpolator")
+      m.inPos.fieldToInterp = "body.translation"
+      m.inPos.key = [0, 1]
+      m.inPos.keyValue = [[0, 0], [0, -10]]
+      m.inRing = m.focusIn.createChild("FloatFieldInterpolator")
+      m.inRing.fieldToInterp = "ring.opacity"
+      m.inRing.key = [0, 1]
+      m.inRing.keyValue = [0, 1]
+      m.inGlow = m.focusIn.createChild("FloatFieldInterpolator")
+      m.inGlow.fieldToInterp = "glow.opacity"
+      m.inGlow.key = [0, 1]
+      m.inGlow.keyValue = [0, 1]
+
+      m.focusOut = m.top.createChild("Animation")
+      m.focusOut.duration = 0.16
+      m.focusOut.easeFunction = "outCubic"
+      m.outScale = m.focusOut.createChild("Vector2DFieldInterpolator")
+      m.outScale.fieldToInterp = "body.scale"
+      m.outScale.key = [0, 1]
+      m.outScale.keyValue = [[1.1, 1.1], [1, 1]]
+      m.outPos = m.focusOut.createChild("Vector2DFieldInterpolator")
+      m.outPos.fieldToInterp = "body.translation"
+      m.outPos.key = [0, 1]
+      m.outPos.keyValue = [[0, -10], [0, 0]]
+      m.outRing = m.focusOut.createChild("FloatFieldInterpolator")
+      m.outRing.fieldToInterp = "ring.opacity"
+      m.outRing.key = [0, 1]
+      m.outRing.keyValue = [1, 0]
+      m.outGlow = m.focusOut.createChild("FloatFieldInterpolator")
+      m.outGlow.fieldToInterp = "glow.opacity"
+      m.outGlow.key = [0, 1]
+      m.outGlow.keyValue = [1, 0]
+
+      ' Spec 11: x0.96 over 100ms, back over 120ms with overshoot.
+      m.press = m.top.createChild("Animation")
+      m.press.duration = 0.22
+      m.press.easeFunction = "linear"
+      m.pressScale = m.press.createChild("Vector2DFieldInterpolator")
+      m.pressScale.fieldToInterp = "body.scale"
+      m.pressScale.key = [0, 0.45, 0.8, 1]
+      m.pressScale.keyValue = [[1.1, 1.1], [1.056, 1.056], [1.12, 1.12], [1.1, 1.1]]
+
+      ' Interpolators address children by id.
+      m.body.id = "body"
+      m.ring.id = "ring"
+      m.glow.id = "glow"
+  end sub
+
+  sub onApp()
+      a = m.top.app
+      if a = invalid then return
+      if a.id = "lumen.memories"
+          ' Same painted card as the apps: picture glyph + "Memories" until photos arrive.
+          m.card.uri = "pkg:/images/tiles/card_" + PastelFor(a.id) + ".png"
+          m.frame.visible = false
+          m.glyph.uri = "pkg:/images/ui/ic_picture.png"
+          m.glyph.width = 76
+          m.glyph.height = 76
+          m.glyph.translation = [106, 36]
+          m.glyph.visible = true
+          m.word.text = "Memories"
+          m.word.visible = true
+          m.icon.visible = false
+      else if a.id = "lumen.add"
+          ' Same painted card as the apps, with an ink plus at the 92px glyph size (spec 5.2).
+          m.card.uri = "pkg:/images/tiles/card_cream.png"
+          m.frame.visible = false
+          m.glyph.uri = "pkg:/images/ui/ic_plus.png"
+          m.glyph.width = 92
+          m.glyph.height = 92
+          m.glyph.translation = [98, 50]
+          m.glyph.visible = true
+          m.icon.visible = false
+      else
+          m.card.uri = "pkg:/images/tiles/card_" + PastelFor(a.id) + ".png"
+          m.frame.visible = false
+          m.icon.uri = m.top.iconBase + "/query/icon/" + a.id
+          ' Fallback (spec 5.2): if the ECP icon fails, show a Lumen glyph tile instead.
+          m.icon.failedBitmapUri = "pkg:/images/tiles/tile_video.png"
+      end if
+  end sub
+
+  sub onPhotos()
+      list = m.top.photos
+      if list = invalid or list.Count() = 0 then return
+      m.glyph.visible = false
+      m.word.visible = false
+      m.photoIndex = -1
+      m.front = m.photoB
+      if m.cycle = invalid
+          m.cycle = m.top.createChild("Timer")
+          m.cycle.duration = 6
+          m.cycle.repeat = true
+          m.cycle.observeField("fire", "nextPhoto")
+          m.fade = m.top.createChild("Animation")
+          m.fade.duration = 0.8
+          m.fade.easeFunction = "inOutCubic"
+          m.fadeIn = m.fade.createChild("FloatFieldInterpolator")
+          m.fadeIn.key = [0, 1]
+          m.fadeIn.keyValue = [0, 1]
+          m.fadeOut = m.fade.createChild("FloatFieldInterpolator")
+          m.fadeOut.key = [0, 1]
+          m.fadeOut.keyValue = [1, 0]
+      end if
+      nextPhoto()
+      if list.Count() > 1 then m.cycle.control = "start"
+  end sub
+
+  sub nextPhoto()
+      list = m.top.photos
+      m.photoIndex = (m.photoIndex + 1) mod list.Count()
+      if m.front.isSameNode(m.photoA) then back = m.photoB else back = m.photoA
+      back.uri = list[m.photoIndex] + "?card=1"
+      m.fadeIn.fieldToInterp = back.id + ".opacity"
+      m.fadeOut.fieldToInterp = m.front.id + ".opacity"
+      m.fade.control = "start"
+      m.front = back
+  end sub
+
+  sub placeX()
+      m.top.translation = [m.top.baseX, 0]
+  end sub
+
+  sub onFocus()
+      if m.top.reduceMotion
+          s = 1.0
+          if m.top.focused then s = 1.1
+          m.body.scale = [s, s]
+          o = 0.0
+          if m.top.focused then o = 1.0
+          m.ring.opacity = o
+          m.glow.opacity = o
+          return
+      end if
+      if m.top.focused
+          m.focusOut.control = "stop"
+          m.focusIn.control = "start"
+      else
+          m.focusIn.control = "stop"
+          m.focusOut.control = "start"
+      end if
+  end sub
+
+  sub onLifted()
+      m.focusIn.control = "stop"
+      m.focusOut.control = "stop"
+      if m.top.lifted
+          m.body.scale = [1.16, 1.16]
+          m.body.translation = [0, -22]
+          m.ring.opacity = 1
+          m.glow.opacity = 1
+      else
+          m.body.scale = [1.1, 1.1]
+          m.body.translation = [0, -10]
+      end if
+  end sub
+
+  sub onPress()
+      if not m.top.reduceMotion then m.press.control = "start"
+  end sub
+  ]]>
+  </script>
+</component>

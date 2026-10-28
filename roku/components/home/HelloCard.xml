@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Under the clock.
+    phone connected        -> just a warm, slightly witty greeting with the owner's name
+    remembered, not here   -> QR card "Reconnect, <name>"
+    never paired           -> QR card "Connect your phone"
+  The QR carries a one-time code that the bridge replaces after every pairing and disconnect,
+  so the image changes each time. Not focusable (spec 6.2).
+-->
+<component name="HelloCard" extends="Group">
+  <interface>
+    <field id="name" type="string" onChange="update" />
+    <field id="connected" type="boolean" value="false" onChange="update" />
+    <field id="code" type="string" onChange="update" />
+    <field id="bridge" type="string" onChange="update" />
+    <field id="deep" type="color" onChange="onDeep" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      th = LumenTheme()
+      m.th = th
+      m.top.translation = [96, 300]
+      m.greetedFor = ""
+
+      ' Paired: the greeting, with a soft deep shadow like the clock.
+      m.greetShadow = greetLabel(2)
+      m.greet = greetLabel(0)
+
+      ' Not paired: the QR card.
+      m.card = m.top.createChild("Group")
+      m.fill = m.card.createChild("Poster")
+      m.fill.uri = "pkg:/images/ui/card_r28.9.png"
+      m.fill.width = 456
+      m.fill.height = 212
+      m.fill.opacity = 0.82
+      stroke = m.card.createChild("Poster")
+      stroke.uri = "pkg:/images/ui/pill_64_stroke.9.png"
+      stroke.width = 456
+      stroke.height = 212
+      tile = m.card.createChild("Poster")
+      tile.uri = "pkg:/images/ui/card_r28.9.png"
+      tile.blendColor = th.white
+      tile.translation = [20, 20]
+      tile.width = 172
+      tile.height = 172
+      m.qr = m.card.createChild("Poster")
+      m.qr.translation = [30, 30]
+      m.qr.width = 152
+      m.qr.height = 152
+      m.title = m.card.createChild("Label")
+      m.title.font = LumenFont("Fraunces-Title", 28)
+      m.title.color = th.white
+      m.title.translation = [212, 22]
+      m.title.width = 232
+      m.title.height = 96
+      m.title.wrap = true
+      m.title.maxLines = 2
+      m.how = m.card.createChild("Label")
+      m.how.font = LumenFont("Manrope-SemiBold", 19)
+      m.how.color = WithAlpha(th.white, 0.85)
+      m.how.translation = [212, 116]
+      m.how.width = 232
+      m.how.height = 90
+      m.how.wrap = true
+      m.how.maxLines = 3
+      update()
+  end sub
+
+  function greetLabel(offset as integer) as object
+      l = m.top.createChild("Label")
+      l.font = LumenFont("Fraunces-Italic", 34)
+      l.translation = [offset, offset]
+      l.width = 470
+      l.height = 100
+      l.wrap = true
+      l.maxLines = 2
+      if offset > 0 then l.opacity = 0.75 else l.color = m.th.white
+      return l
+  end function
+
+  sub onDeep()
+      m.fill.blendColor = m.top.deep
+      m.greetShadow.color = m.top.deep
+  end sub
+
+  sub update()
+      if m.greet = invalid then return
+      name = m.top.name
+      known = (name <> invalid and name <> "")
+      here = known and m.top.connected
+      m.card.visible = not here
+      m.greet.visible = here
+      m.greetShadow.visible = here
+      if known then m.title.text = "Reconnect, " + name else m.title.text = "Connect your phone"
+      if here
+          ' A new line only when the phone (re)connects, not on every repaint.
+          if m.greetedFor <> name
+              g = greeting(name)
+              m.greet.text = g
+              m.greetShadow.text = g
+              m.greetedFor = name
+          end if
+      else if m.top.bridge <> invalid and m.top.bridge <> ""
+          m.greetedFor = ""
+          m.qr.uri = m.top.bridge + "/qr.png?c=" + m.top.code
+          m.how.text = "Scan with your phone camera, on the same Wi-Fi"
+      else
+          m.qr.uri = ""
+          m.how.text = "Start the Lumen helper to pair"
+      end if
+  end sub
+
+  ' Picked fresh every launch; the time of day decides the pool.
+  function greeting(name as string) as string
+      now = CreateObject("roDateTime")
+      now.ToLocalTime()
+      h = now.GetHours()
+      if h >= 5 and h < 12
+          pool = ["Morning, {n}. The sunflowers were up before you.", "Good morning, {n}. Coffee first, then the world.", "Rise and shine, {n}. Vincent painted at this hour too."]
+      else if h >= 12 and h < 17
+          pool = ["Afternoon, {n}. Perfect light for doing nothing.", "Hey {n}, the day's half done. Treat yourself.", "Good afternoon, {n}. The irises say hi."]
+      else if h >= 17 and h < 22
+          pool = ["Evening, {n}. The stars clocked in early for you.", "Welcome back, {n}. Couch mode: activated.", "Good evening, {n}. Something good on tonight?"]
+      else
+          pool = ["Still up, {n}? The stars are keeping you company.", "Late night, {n}. One more episode, then bed.", "Hello, night owl {n}. The sky's all yours."]
+      end if
+      return pool[Rnd(pool.Count()) - 1].Replace("{n}", name)
+  end function
+  ]]>
+  </script>
+</component>

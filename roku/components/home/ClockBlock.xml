@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spec 6.2: date eyebrow, clock with a soft deep shadow, weather line. Not focusable. -->
+<component name="ClockBlock" extends="Group">
+  <interface>
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="clock24" type="boolean" value="false" onChange="tick" />
+    <field id="weatherText" type="string" onChange="onWeather" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      th = LumenTheme()
+      ' A dark frosted pill behind the date keeps it readable over bright brushwork.
+      m.datePill = m.top.createChild("Poster")
+      m.datePill.uri = "pkg:/images/ui/pill_64.9.png"
+      m.datePill.translation = [76, 54]
+      m.datePill.height = 50
+      m.datePill.opacity = 0.78
+
+      m.date = m.top.createChild("Label")
+      ' Spec 6.2 says 22px; 28px at full white reads better from the couch (owner request).
+      m.date.translation = [96, 59]
+      m.date.font = LumenFont("Manrope-ExtraBold", 28)
+      m.date.color = th.white
+      m.date.width = 1000
+      m.date.height = 38
+
+      ' Fraunces has a wide left side bearing at this size: shift 4px left (spec 6.2).
+      m.shadow = m.top.createChild("Label")
+      m.shadow.translation = [96, 97]
+      m.shadow.font = LumenFont("Fraunces-Display", 176)
+      m.shadow.opacity = 0.75
+      m.shadow.width = 900
+      m.shadow.height = 190
+
+      m.clock = m.top.createChild("Label")
+      m.clock.translation = [92, 92]
+      m.clock.font = LumenFont("Fraunces-Display", 176)
+      m.clock.color = th.white
+      m.clock.width = 900
+      m.clock.height = 190
+
+      m.weather = m.top.createChild("Label")
+      m.weather.translation = [96, 282]
+      m.weather.font = LumenFont("Manrope-SemiBold", 28)
+      m.weather.color = WithAlpha(th.white, 0.94)
+      m.weather.width = 1200
+      m.weather.height = 40
+
+      m.lastMinute = -1
+      m.timer = m.top.createChild("Timer")
+      m.timer.repeat = true
+      m.timer.duration = 1
+      m.timer.observeField("fire", "tick")
+      m.timer.control = "start"
+      tick()
+  end sub
+
+  sub tick()
+      now = CreateObject("roDateTime")
+      now.ToLocalTime()
+      if now.GetMinutes() = m.lastMinute and m.top.clock24 = m.clock24Shown then return
+      m.lastMinute = now.GetMinutes()
+      m.clock24Shown = m.top.clock24
+
+      h = now.GetHours()
+      if not m.top.clock24
+          h = h mod 12
+          if h = 0 then h = 12
+      end if
+      mins = now.GetMinutes().ToStr()
+      if Len(mins) < 2 then mins = "0" + mins
+      text = h.ToStr() + ":" + mins
+      m.clock.text = text
+      m.shadow.text = text
+
+      months = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"]
+      m.date.text = UCase(now.GetWeekday()) + " " + now.GetDayOfMonth().ToStr() + " " + months[now.GetMonth() - 1]
+      ' A Label with a set width reports that width, so measure with width 0, then restore.
+      m.date.width = 0
+      w = m.date.boundingRect().width
+      if w <= 0 then w = Len(m.date.text) * 18
+      m.date.width = w + 4
+      m.datePill.width = w + 40
+  end sub
+
+  sub onDeep()
+      m.shadow.color = m.top.deep
+      m.datePill.blendColor = m.top.deep
+  end sub
+
+  sub onWeather()
+      m.weather.text = m.top.weatherText
+  end sub
+  ]]>
+  </script>
+</component>

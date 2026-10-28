@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Lumen</title>
+<style>
+@font-face{font-family:Fraunces;src:url(webfonts/fraunces.woff2) format('woff2');font-weight:100 900;font-style:normal}
+@font-face{font-family:Fraunces;src:url(webfonts/fraunces-italic.woff2) format('woff2');font-weight:100 900;font-style:italic}
+@font-face{font-family:Manrope;src:url(webfonts/manrope.woff2) format('woff2');font-weight:200 800}
+body{margin:0;background:#000}
+.s{position:relative;width:1920px;height:1080px;overflow:hidden;font-family:Manrope,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+.wall{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.fr{font-family:Fraunces,serif;font-variation-settings:"SOFT" 100,"WONK" 0}
+.frost{background:rgba(var(--d),.34);-webkit-backdrop-filter:blur(30px) saturate(160%);backdrop-filter:blur(30px) saturate(160%);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 0 0 1px rgba(255,255,255,.14)}
+.eyebrow{font-size:22px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+.tile{position:relative;width:288px;height:192px;border-radius:34px;flex:none;overflow:hidden;box-shadow:0 18px 40px -12px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.4);transition:transform .22s cubic-bezier(.2,.9,.3,1.25)}
+.tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.tile:after{content:'';position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.38),rgba(255,255,255,.12));pointer-events:none}.tile svg{z-index:1}
+.tile svg{position:absolute;left:50%;top:50%;width:92px;height:92px;transform:translate(-50%,-50%)}
+.tile.f{transform:translateY(-10px) scale(1.1);box-shadow:0 0 0 5px #FFDE03,0 0 0 7px rgba(28,28,28,.9),0 30px 60px -10px rgba(0,0,0,.6),0 0 80px 10px rgba(255,222,3,.35)}
+.pill{height:64px;border-radius:32px;display:flex;align-items:center;gap:12px;padding:0 24px 0 20px;font-size:24px;font-weight:700}
+.rb{width:64px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:center}
+.ui{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+</style></head><body>
+<div class="s" id="s"></div>
+<script src="icons.js"></script>
+<script>
+const T = {
+  starry:{img:'../images/wall/wall_starry.jpg',deep:'20,24,74',time:'9:41',date:'Tuesday 27 October',wx:'8°  Clear in Barrie',paint:'Starry Night',greet:'Clear and quiet tonight. Pick up Music where you left off?',act:'Open Music'},
+  sunflower:{img:'../images/wall/wall_sunflower.jpg',deep:'112,62,0',time:'10:12',date:'Saturday 14 June',wx:'24°  Sunny in Barrie',paint:'Sunflower Field',greet:'Big sunny Saturday. The game starts at 1 on Sports.',act:'Open Sports'},
+  irises:{img:'../images/wall/wall_irises.jpg',deep:'44,36,96',time:'3:24',date:'Thursday 9 April',wx:'11°  Rain in Barrie',paint:'Irises in the Rain',greet:'Rainy afternoon. Want cosy picture mode and Streaming 2?',act:'Make it cosy'},
+  blossom:{img:'../images/wall/wall_blossom.jpg',deep:'10,70,78',time:'1:05',date:'Sunday 22 March',wx:'14°  Cloudy in Barrie',paint:'Almond Blossom',greet:'12 new photos came in from your phone. Show them tonight?',act:'Show photos'},
+  snow:{img:'../images/wall/wall_snow.jpg',deep:'46,48,104',time:'6:48',date:'Monday 14 December',wx:'−3°  Snow in Barrie',paint:'Snowy Evening',greet:'Snow day. Sleep timer at 11 like last night?',act:'Set timer'},
+};
+const A=[['Streaming 1','rose','play'],['Streaming 2','sky','tv'],['Music','mint','music'],['Video','wheat','camera'],['Sports','lilac','ball'],['Photos','peach','photo'],['Kids','aqua','balloon'],['Podcasts','cream','mic']];
+const q=new URLSearchParams(location.search), t=T[q.get('t')||'starry'], fi=+(q.get('f')||2), theo=q.has('theo');
+const d=t.deep;document.getElementById('s').style.setProperty('--d',d);
+document.getElementById('s').innerHTML=`
+<img class="wall" src="${t.img}"><img class="wall" src="${t.img.replace('.jpg','_blur.jpg')}" style="-webkit-mask-image:linear-gradient(180deg,transparent 46%,#000 64%);mask-image:linear-gradient(180deg,transparent 46%,#000 64%)">
+<div style="position:absolute;inset:0;background:radial-gradient(1200px 700px at 0% 0%,rgba(${d},.7),rgba(${d},0) 70%),linear-gradient(180deg,rgba(${d},0) 40%,rgba(${d},.42) 60%,rgba(${d},.78) 100%)"></div>
+
+<div style="position:absolute;left:96px;top:66px;text-shadow:0 2px 24px rgba(${d},.5)">
+  <div class="eyebrow" style="opacity:.9">${t.date}</div>
+  <div class="fr" style="font-size:176px;font-weight:420;line-height:1;letter-spacing:-.035em;margin-top:6px">${t.time}</div>
+  <div style="font-size:28px;font-weight:600;margin-top:10px;opacity:.92">${t.wx}</div>
+</div>
+
+<div style="position:absolute;right:96px;top:72px;display:flex;gap:14px;align-items:center">
+  <div class="pill" style="height:64px;padding:0 26px 0 8px;gap:12px;background:#FFDE03;color:#1C1C1C;font-weight:800;box-shadow:0 10px 30px -8px rgba(0,0,0,.4)">${MARK(48,'#1C1C1C')}Ask Zeus</div>
+  <div class="rb frost"><svg viewBox="0 0 64 64" width="32" height="32" style="color:#fff">${ICONS.gear}</svg></div>
+</div>
+
+<div class="frost" style="position:absolute;left:96px;top:452px;height:88px;border-radius:44px;display:flex;align-items:center;gap:18px;padding:0 12px 0 14px">
+  ${MARK(60,'#1C1C1C')}
+  <span style="font-size:27px;font-weight:600">${t.greet}</span>
+  <span style="height:64px;border-radius:32px;padding:0 26px;display:flex;align-items:center;background:#fff;color:#1C1C1C;font-size:24px;font-weight:800;margin-left:10px">${t.act}</span>
+</div>
+
+<div style="position:absolute;left:96px;top:604px;width:1824px;height:300px;display:flex;gap:36px;padding-top:20px;box-sizing:border-box;-webkit-mask-image:linear-gradient(90deg,#000 80%,transparent);mask-image:linear-gradient(90deg,#000 80%,transparent)">
+ ${A.map((a,i)=>`<div style="position:relative;flex:none"><div class="tile${i===fi?' f':''}"><img src="../scripts/tile_textures/tile_${a[1]}.jpg"><svg viewBox="0 0 64 64">${ICONS[a[2]]}</svg></div>
+   ${i===fi?`<div style="position:absolute;left:0;right:0;top:232px;text-align:center;font-size:28px;font-weight:800">${a[0]}</div>`:''}</div>`).join('')}
+</div>
+
+<div style="position:absolute;left:96px;bottom:60px;display:flex;gap:12px;align-items:center">
+  ${[['PlayStation','M10 22h44v10l-7 8H17l-7-8zM20 30h24'],['Apple TV','M10 22h44v10l-7 8H17l-7-8zM20 30h24'],['Live TV','M10 20h44v30H10zM24 10l8 9 8-9']].map(p=>`<div class="pill frost"><svg class="ui" viewBox="0 0 64 64"><path d="${p[1]}"/></svg>${p[0]}</div>`).join('')}
+  <span style="width:1px;height:36px;background:rgba(255,255,255,.35);margin:0 10px"></span>
+  ${['M44 40A18 18 0 0 1 24 14a18 18 0 1 0 20 26z','M8 14h48v36H8zM8 42l14-12 10 9 8-7 16 13','M40 12l12 12-26 26H14V38z','M32 10v18M20 18a18 18 0 1 0 24 0'].map(p=>`<div class="rb frost"><svg class="ui" viewBox="0 0 64 64"><path d="${p}"/></svg></div>`).join('')}
+</div>
+
+<div style="position:absolute;right:96px;bottom:74px;text-align:right">
+  <div class="fr" style="font-size:30px;font-style:italic;font-weight:500">${t.paint}</div>
+  <div class="eyebrow" style="font-size:18px;opacity:.75;margin-top:6px">After Vincent van Gogh · painted for ${t.wx.split('  ')[1].split(' ')[0].toLowerCase()} weather</div>
+</div>
+${theo?`
+<div style="position:absolute;inset:0;background:rgba(${d},.45)"></div>
+<aside style="position:absolute;right:40px;top:40px;bottom:40px;width:660px;border-radius:44px;background:#FBF7EC;color:#1C1C1C;padding:40px;box-sizing:border-box;display:flex;flex-direction:column;gap:20px;box-shadow:0 40px 100px -20px rgba(0,0,0,.6)">
+  <div style="display:flex;align-items:center;gap:18px">${MARK(72)}<div style="flex:1"><div class="fr" style="font-size:52px;font-weight:560;line-height:1">Zeus</div><div style="font-size:22px;font-weight:700;opacity:.6;margin-top:6px">Your TV's helper</div></div>
+  <div class="rb" style="border:2px solid rgba(28,28,28,.2)"><svg class="ui" viewBox="0 0 64 64"><path d="M20 20l24 24M44 20L20 44"/></svg></div></div>
+  <div style="border-radius:28px;overflow:hidden;position:relative;height:150px;box-shadow:inset 0 0 0 1px rgba(28,28,28,.08)"><img src="${t.img}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(${d},.85),rgba(${d},.1))"></div><div style="position:absolute;left:26px;top:22px;color:#fff"><div class="eyebrow" style="font-size:18px;opacity:.85">Today in Barrie</div><div class="fr" style="font-size:40px;font-weight:520;margin-top:6px">${t.wx.split('  ')[0]} and ${t.wx.split('  ')[1].split(' ')[0].toLowerCase()}</div><div style="font-size:22px;font-weight:600;opacity:.9;margin-top:4px">Showing ${t.paint}</div></div></div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:14px">
+    <div style="align-self:flex-start;max-width:470px;background:#fff;border-radius:28px 28px 28px 8px;padding:20px 24px;font-size:26px;font-weight:600;line-height:1.4;box-shadow:0 1px 0 rgba(28,28,28,.06)">${t.greet}</div>
+    <div style="align-self:flex-end;max-width:470px;background:#FFDE03;border-radius:28px 28px 8px 28px;padding:20px 24px;font-size:26px;font-weight:700">Paint me something sunny</div>
+    <div style="align-self:flex-start;max-width:470px;background:#fff;border-radius:28px 28px 28px 8px;padding:20px 24px;font-size:26px;font-weight:600;line-height:1.4">Done. Sunflowers until sunset, then back to the real sky.</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px">${['What should I watch?','Sleep in 30 min','Switch to PlayStation','Paint the rain'].map(c=>`<span style="height:56px;border-radius:28px;padding:0 22px;display:flex;align-items:center;font-size:23px;font-weight:700;border:2px solid #1C1C1C">${c}</span>`).join('')}</div>
+  <div style="height:76px;border-radius:38px;background:#fff;display:flex;align-items:center;padding:0 10px 0 28px;font-size:25px;font-weight:600;color:rgba(28,28,28,.55)">Ask Zeus anything…<span style="margin-left:auto;height:56px;border-radius:28px;padding:0 20px;display:flex;align-items:center;background:#1C1C1C;color:#FFDE03;font-size:21px;font-weight:800">Type on phone</span></div>
+</aside>`:''}
+`;
+</script></body></html>

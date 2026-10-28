@@ -1,0 +1,47 @@
+# Lumen progress
+
+## M1 + M2: Roku home screen (running on the Hisense TV, build 1.0.9)
+
+**Verified on the TV** with Roku dev screenshots and the debug console, 27 Oct 2026:
+- The Starry Night painting is sharp at the top and fades smoothly into blur behind the apps, with deep scrims.
+- Date eyebrow and the 176px Fraunces clock (6.2). The weather line stays empty until M5.
+- Your real apps come from the TV (Prime Video, Netflix, Spotify, Backdrops, YouTube), each with its own icon in a pastel painted frame. The focused tile gets the yellow ring, glow and scale, with its name below. The Add app tile is last, and tiles fade near the right edge.
+- Ask Zeus pill and gear (6.3); the input pills (three HDMI inputs all named "PlayStation 5" by the TV), divider and four round buttons (6.6); the painting credit (6.7).
+- **OK opens the app.** Prime Video opened through the bridge in about 1 second.
+- 27 scripted key presses across every zone and both ends of the row, with no errors.
+
+**Architecture change:** Roku OS 16 blocks ECP from a channel to its own TV (403 even in Permissive). Lumen now goes through the **Lumen bridge** (PLAN.md section 7). For now that's `bridge/lumen_bridge.py` on the Mac; in M4 it moves into the phone app.
+
+**Placeholders until later milestones:** Ask Zeus (M6), Settings (M7), Add app and tile options (M7), Sleep timer (M6), Edit Home (M7).
+
+### Running it
+
+1. **Start the bridge on the Mac:**
+   ```
+   python3 bridge/lumen_bridge.py --tv 192.168.2.33
+   ```
+   Allow incoming connections if macOS asks. While Lumen is on screen, the bridge prints "told Lumen about http://192.168.2.21:8977".
+2. **Build:** `sh roku/build.sh` creates `roku/out/lumen.zip`.
+3. **Install:** sign in at `http://192.168.2.33` (user `rokudev`), Upload → `lumen.zip` → Replace with zip. Claude can do this through Claude in Chrome once you're signed in. `roku/deploy.sh` also installs from the command line if the password is saved in Keychain (service `lumen-roku`).
+4. **Debug console:** `nc -d 192.168.2.33 8085`.
+5. **Screenshot:** Utilities → Screenshot on the dev page, or `roku/screenshot.sh`.
+
+**Not yet done:**
+- The bridge only runs while it's started by hand. If the Mac sleeps or the helper stops, tiles can't open apps until it comes back.
+- The three inputs all show "PlayStation 5" because that's what the TV calls them. Renaming arrives with tile options (M7).
+
+## Next: M3 (Android remote) + M4 (phone hosts the bridge)
+- M3: SSDP discovery, EcpClient, and the Remote tab matched to `assets/reference/phone/phone_remote.png`.
+- M4: TvWatcherService auto-open, plus the bridge endpoints and announcement from PLAN.md section 7, so the Mac helper can be retired.
+
+## Additions after M2 (owner requests, 28 Oct)
+- **Logos on painted cards** (PLAN 6.19) with larger logos; Add app is a cream painted card with an ink plus.
+- **Games card** (top-right, above the row): two original games play *inside* the card. **Firefly** is a one-button flier through cypress gaps; **Wheatfield Run** is a runner jumping haystacks. ◀ ▶ switches, OK starts / flaps / jumps, Back or moving away stops. Best scores are saved in the registry (`best_firefly`, `best_runner`). Reach it with Up from the right half of the app row, or Down from Ask Zeus.
+- **Yellow liquid glass:** every yellow state (Ask Zeus, focused pills, focused Games card) is yellow at 86% plus a white rim, top sheen and bottom glow overlay (`glass_pill_64.9.png`, `glass_card_r28.9.png` from `roku/tools/gen_glass.py`). There's no live blur on Roku.
+
+## Build 21 (28 Oct)
+- **Games panel** spans x 583 to 1824 (1241 px). Games run on a 1210x342 stage: **Flutter** (red bird, rounded painted columns, Starry Night), **Pup Run** (beagle pup, Van Gogh sunflower field), **Star Catcher**. Frames are preloaded and toggled, obstacles pooled, backgrounds scrolled by Animation nodes. Uri swaps every frame had caused the flicker.
+- **Focus** is white liquid glass; yellow is only the Zeus star, the tile focus ring and the New best badge. Ask Zeus and Settings sit on a near-solid deep pill; the date sits on a dark frosted pill.
+- **Logos** are ink-black, except YouTube's red badge (`lumen-img key … mono|mono-red`). Icons are upscaled 4x before keying and output at 2x, so edges are smooth.
+- **Memories** is the first card. Empty: a painted card with picture glyph and *Memories*. With photos: a rounded full-card slideshow (`/memories/<name>?card=1`), and OK opens a full-screen slideshow. Photos come from `~/Pictures/Lumen Memories` via the Mac helper for now; the phone app takes this over later.
+- **Home behaviour** (helper `watcher()`): backing or Home-ing out of an app onto Roku's home reopens Lumen. Home pressed while in Lumen stays on Roku's home until another app opens. Roku never reports a held Home, so "press Home twice" replaces press-and-hold. Verified: Backdrops → Home → Lumen back within ~1 s; Home in Lumen → stays on Roku home.

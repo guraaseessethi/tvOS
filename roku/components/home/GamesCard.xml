@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Games panel: a wide rectangle top-right above the app row; the games play inside it.
+  Tabs: Flutter (red bird flier), Pup Run (dog runner), Star Catcher.
+  ‹ › switch game (not mid-run), OK starts / flaps / jumps / resumes, Back ends the run.
+  Moving focus away pauses. Focus is white liquid glass; yellow is only the New best badge.
+-->
+<component name="GamesCard" extends="Group">
+  <interface>
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="theme" type="string" value="starry" onChange="onTheme" />
+    <field id="focused" type="boolean" value="false" onChange="onFocused" />
+    <function name="handleKey" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.th = LumenTheme()
+      ' Window height 344; width follows the games' 1210x342 stage at the same scale.
+      m.AH = 344
+      m.scale = m.AH / LumenTheme().gameH
+      m.AW = Int(LumenTheme().gameW * m.scale)
+      m.W = m.AW + 24
+      m.H = m.AH + 64 + 12
+
+      m.fill = poster("pkg:/images/ui/card_r28.9.png", 0, 0, m.W, m.H, m.top)
+      m.stroke = poster("pkg:/images/ui/pill_64_stroke.9.png", 0, 0, m.W, m.H, m.top)
+      m.glass = poster("pkg:/images/ui/glass_card_r28.9.png", 0, 0, m.W, m.H, m.top)
+
+      m.games = [
+          { name: "Flutter", node: "BirdGame", icon: "bird_1.png", how: "Press OK to flap between the cypresses" }
+          { name: "Pup Run", node: "DogGame", icon: "dog_run_0.png", how: "Press OK to jump the haystacks" }
+          { name: "Star Catcher", node: "CatchGame", icon: "star.png", how: "Hold ‹ › to catch stars, dodge ink" }
+      ]
+      m.tabs = []
+      x = 14
+      for each g in m.games
+          t = m.top.createChild("Group")
+          t.translation = [x, 10]
+          bg = poster("pkg:/images/ui/pill_64.9.png", 0, 0, 10, 44, t)
+          l = t.createChild("Label")
+          l.font = LumenFont("Manrope-ExtraBold", 20)
+          l.text = g.name
+          l.translation = [18, 0]
+          l.height = 44
+          l.vertAlign = "center"
+          tw = l.boundingRect().width
+          if tw <= 0 then tw = Len(g.name) * 11
+          l.width = tw + 2
+          bg.width = tw + 36
+          m.tabs.Push({ bg: bg, label: l })
+          x = x + tw + 36 + 8
+      end for
+
+      m.bestL = m.top.createChild("Label")
+      m.bestL.font = LumenFont("Manrope-ExtraBold", 20)
+      m.bestL.horizAlign = "right"
+      m.bestL.vertAlign = "center"
+      m.bestL.translation = [m.W - 240 - 22, 10]
+      m.bestL.width = 240
+      m.bestL.height = 44
+
+      ' The game window: square-cornered, clipped.
+      m.area = m.top.createChild("Group")
+      m.area.translation = [12, 64]
+      m.area.clippingRect = [0, 0, m.AW, m.AH]
+      m.stage = m.area.createChild("Group")
+      m.stage.scale = [m.scale, m.scale]
+
+      ' HUD score with a soft shadow.
+      m.scoreShadow = hudLabel(3)
+      m.score = hudLabel(0)
+
+      buildCard()
+      m.index = 0
+      m.game = invalid
+      loadGame()
+  end sub
+
+  function poster(uri as string, x as float, y as float, w as float, h as float, parent as object) as object
+      p = parent.createChild("Poster")
+      p.uri = uri
+      p.translation = [x, y]
+      p.width = w
+      p.height = h
+      return p
+  end function
+
+  function hudLabel(offset as integer) as object
+      l = m.area.createChild("Label")
+      l.font = LumenFont("Fraunces-Display", 64)
+      l.horizAlign = "center"
+      l.translation = [0 + offset, 6 + offset]
+      l.width = m.AW
+      l.height = 80
+      if offset > 0
+          l.color = "0x00000066"
+      else
+          l.color = m.th.white
+      end if
+      return l
+  end function
+
+  ' Paper card for ready / paused / game over, centred in the window.
+  sub buildCard()
+      c = m.area.createChild("Group")
+      c.translation = [(m.AW - 400) / 2, (m.AH - 262) / 2]
+      m.card = c
+      sheet = poster("pkg:/images/ui/sheet_r44.9.png", 0, 0, 400, 262, c)
+      sheet.blendColor = m.th.paper
+      m.cardIcon = poster("", 168, 18, 64, 52, c)
+      m.cardIcon.loadDisplayMode = "scaleToFit"
+      m.cardEyebrow = cardLabel("Manrope-ExtraBold", 16, 22, m.th.ink60)
+      m.cardBig = cardLabel("Fraunces-Display", 72, 38, m.th.ink)
+      m.cardTitle = cardLabel("Fraunces-Title", 32, 78, m.th.ink)
+      m.cardLine = cardLabel("Manrope-SemiBold", 20, 126, m.th.ink60)
+
+      m.badge = c.createChild("Group")
+      m.badge.translation = [140, 120]
+      badgeBg = poster("pkg:/images/ui/pill_64.9.png", 0, 0, 120, 34, m.badge)
+      badgeBg.blendColor = m.th.yellow
+      bl = m.badge.createChild("Label")
+      bl.font = LumenFont("Manrope-ExtraBold", 16)
+      bl.color = m.th.ink
+      bl.text = "NEW BEST"
+      bl.horizAlign = "center"
+      bl.vertAlign = "center"
+      bl.width = 120
+      bl.height = 34
+
+      m.cardHint = c.createChild("Group")
+      m.cardHint.translation = [90, 186]
+      hintBg = poster("pkg:/images/ui/pill_64.9.png", 0, 0, 220, 52, m.cardHint)
+      hintBg.blendColor = m.th.ink
+      m.cardHintL = m.cardHint.createChild("Label")
+      m.cardHintL.font = LumenFont("Manrope-ExtraBold", 20)
+      m.cardHintL.color = m.th.white
+      m.cardHintL.horizAlign = "center"
+      m.cardHintL.vertAlign = "center"
+      m.cardHintL.width = 220
+      m.cardHintL.height = 52
+  end sub
+
+  function cardLabel(font as string, size as integer, y as integer, color as string) as object
+      l = m.card.createChild("Label")
+      l.font = LumenFont(font, size)
+      l.color = color
+      l.horizAlign = "center"
+      l.translation = [10, y]
+      l.width = 380
+      l.height = size + 16
+      return l
+  end function
+
+  sub loadGame()
+      if m.game <> invalid
+          m.game.key = "stop"
+          m.stage.removeChild(m.game)
+      end if
+      g = m.stage.createChild(m.games[m.index].node)
+      g.theme = m.top.theme
+      g.deep = m.top.deep
+      g.observeField("state", "refresh")
+      g.observeField("points", "onPoints")
+      m.game = g
+      m.cardIcon.uri = "pkg:/images/games/" + m.games[m.index].icon
+      paintTabs()
+      refresh()
+  end sub
+
+  sub onTheme()
+      if m.game <> invalid then m.game.theme = m.top.theme
+  end sub
+
+  sub onDeep()
+      if m.game <> invalid then m.game.deep = m.top.deep
+      paint()
+  end sub
+
+  sub onFocused()
+      if not m.top.focused and m.game <> invalid and m.game.state = "play" then m.game.key = "pause"
+      paint()
+      refresh()
+  end sub
+
+  sub onPoints()
+      t = m.game.points.ToStr()
+      m.score.text = t
+      m.scoreShadow.text = t
+  end sub
+
+  sub refresh()
+      if m.game = invalid then return
+      st = m.game.state
+      g = m.games[m.index]
+      onPoints()
+      m.score.visible = (st = "play")
+      m.scoreShadow.visible = (st = "play")
+      m.card.visible = (st <> "play")
+      m.badge.visible = false
+      m.cardBig.visible = false
+      m.cardEyebrow.visible = false
+      m.cardIcon.visible = true
+      m.cardTitle.visible = true
+      if st = "over"
+          m.cardIcon.visible = false
+          m.cardTitle.visible = false
+          m.cardEyebrow.visible = true
+          m.cardEyebrow.text = "SCORE"
+          m.cardBig.visible = true
+          m.cardBig.text = m.game.points.ToStr()
+          m.badge.visible = m.game.newBest
+          if m.game.newBest
+              m.cardLine.text = ""
+          else
+              m.cardLine.text = "Best " + m.game.best.ToStr()
+          end if
+          m.cardHintL.text = "OK  Play again"
+      else if st = "paused"
+          m.cardTitle.text = "Paused"
+          m.cardLine.text = "Score " + m.game.points.ToStr()
+          m.cardHintL.text = "OK  Resume"
+      else
+          m.cardTitle.text = g.name
+          m.cardLine.text = g.how
+          if m.top.focused then m.cardHintL.text = "OK  Start" else m.cardHintL.text = "Select to play"
+      end if
+      if m.game.best > 0 then m.bestL.text = "BEST " + m.game.best.ToStr() else m.bestL.text = ""
+      paintTabs()
+  end sub
+
+  sub paintTabs()
+      if m.tabs = invalid then return
+      f = m.top.focused
+      for i = 0 to m.tabs.Count() - 1
+          t = m.tabs[i]
+          sel = (i = m.index)
+          if sel and f
+              t.bg.blendColor = m.th.ink
+              t.bg.opacity = 1
+              t.label.color = m.th.white
+          else if sel
+              t.bg.blendColor = m.th.white
+              t.bg.opacity = 0.22
+              t.label.color = m.th.white
+          else
+              t.bg.blendColor = m.th.white
+              t.bg.opacity = 0
+              if f then t.label.color = m.th.ink60 else t.label.color = WithAlpha(m.th.white, 0.7)
+          end if
+      end for
+  end sub
+
+  sub paint()
+      if m.fill = invalid then return
+      if m.top.focused
+          m.fill.blendColor = m.th.white
+          m.fill.opacity = m.th.focusOpacity
+          m.stroke.visible = false
+          m.glass.opacity = 1
+          m.bestL.color = m.th.ink
+      else
+          m.fill.blendColor = m.top.deep
+          m.fill.opacity = m.th.frostOpacity
+          m.stroke.visible = true
+          m.glass.opacity = 0.55
+          m.bestL.color = WithAlpha(m.th.white, 0.9)
+      end if
+      paintTabs()
+  end sub
+
+  ' Called by MainScene while the panel has focus (presses, and "<key>_up" releases).
+  function handleKey(key as string) as boolean
+      st = m.game.state
+      inRun = (st = "play" or st = "paused")
+      if key = "OK" or key = "play"
+          m.game.key = "OK"
+          return true
+      else if (key = "left" or key = "right") and not inRun
+          d = 1
+          if key = "left" then d = -1
+          m.index = (m.index + d + m.games.Count()) mod m.games.Count()
+          loadGame()
+          return true
+      else if key = "left" or key = "right" or key = "left_up" or key = "right_up"
+          m.game.key = key
+          return true
+      else if key = "back" and st <> "ready"
+          m.game.key = "stop"
+          return true
+      end if
+      return false
+  end function
+  ]]>
+  </script>
+</component>

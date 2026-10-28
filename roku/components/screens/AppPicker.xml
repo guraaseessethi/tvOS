@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec 13.5: "Choose apps for Home". Every installed app as a painted card in a 5-column grid;
+  OK shows or hides it on Home (ink check badge = on Home). Back saves and closes.
+-->
+<component name="AppPicker" extends="Group">
+  <interface>
+    <field id="apps" type="array" />
+    <field id="hidden" type="assocarray" />
+    <field id="iconBase" type="string" />
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="open" type="boolean" value="false" onChange="onOpen" />
+    <function name="handleKey" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.th = LumenTheme()
+      m.top.visible = false
+      m.cols = 5
+      m.pitchX = 324
+      m.pitchY = 262
+      m.dim = m.top.createChild("Rectangle")
+      m.dim.width = 1920
+      m.dim.height = 1080
+      sheet = m.top.createChild("Poster")
+      sheet.uri = "pkg:/images/ui/sheet_r44.9.png"
+      sheet.blendColor = m.th.paper
+      sheet.translation = [60, 40]
+      sheet.width = 1800
+      sheet.height = 1000
+      t = m.top.createChild("Label")
+      t.font = LumenFont("Fraunces-Title", 56)
+      t.color = m.th.ink
+      t.text = "Choose apps for Home"
+      t.translation = [140, 86]
+      t.width = 1200
+      t.height = 70
+      s = m.top.createChild("Label")
+      s.font = LumenFont("Manrope-Bold", 24)
+      s.color = m.th.ink60
+      s.text = "OK shows or hides an app   ·   Back saves"
+      s.translation = [142, 160]
+      s.width = 1200
+      s.height = 34
+      m.window = m.top.createChild("Group")
+      m.window.translation = [0, 236]
+      m.window.clippingRect = [60, -30, 1800, 790]
+      m.grid = m.window.createChild("Group")
+      m.index = 0
+      m.scrollRow = 0
+  end sub
+
+  sub onDeep()
+      m.dim.color = WithAlpha(m.top.deep, 0.55)
+  end sub
+
+  sub onOpen()
+      m.top.visible = m.top.open
+      if m.top.open then build()
+  end sub
+
+  sub build()
+      m.grid.removeChildrenIndex(m.grid.getChildCount(), 0)
+      m.items = []
+      apps = m.top.apps
+      for i = 0 to apps.Count() - 1
+          col = i mod m.cols
+          row = Int(i / m.cols)
+          g = m.grid.createChild("Group")
+          g.translation = [150 + col * m.pitchX, row * m.pitchY]
+          tile = g.createChild("AppTile")
+          tile.iconBase = m.top.iconBase
+          tile.app = apps[i]
+          name = g.createChild("Label")
+          name.font = LumenFont("Manrope-Bold", 24)
+          name.color = m.th.ink
+          name.horizAlign = "center"
+          name.text = apps[i].name
+          name.translation = [0, 204]
+          name.width = 288
+          name.height = 34
+          badge = g.createChild("Group")
+          badge.translation = [244, -12]
+          disc = badge.createChild("Poster")
+          disc.uri = "pkg:/images/ui/pill_64.9.png"
+          disc.blendColor = m.th.ink
+          disc.width = 52
+          disc.height = 52
+          check = badge.createChild("Poster")
+          check.uri = "pkg:/images/ui/ic_check.png"
+          check.translation = [10, 10]
+          check.width = 32
+          check.height = 32
+          m.items.Push({ tile: tile, badge: badge, id: apps[i].id })
+      end for
+      m.index = 0
+      m.scrollRow = 0
+      paint()
+  end sub
+
+  sub paint()
+      hidden = m.top.hidden
+      for i = 0 to m.items.Count() - 1
+          it = m.items[i]
+          it.tile.focused = (i = m.index)
+          it.badge.visible = (hidden[it.id] = invalid)
+          if hidden[it.id] = invalid then it.tile.opacity = 1 else it.tile.opacity = 0.45
+      end for
+      ' Keep the focused row inside the three visible rows.
+      row = Int(m.index / m.cols)
+      if row > m.scrollRow + 2 then m.scrollRow = row - 2
+      if row < m.scrollRow then m.scrollRow = row
+      m.grid.translation = [0, -m.scrollRow * m.pitchY]
+  end sub
+
+  function handleKey(key as string) as boolean
+      n = m.items.Count()
+      if n = 0 then return true
+      i = m.index
+      if key = "left" and i mod m.cols > 0 then i = i - 1
+      if key = "right" and i mod m.cols < m.cols - 1 and i + 1 < n then i = i + 1
+      if key = "up" and i - m.cols >= 0 then i = i - m.cols
+      if key = "down" and i + m.cols < n then i = i + m.cols
+      if key = "OK"
+          h = m.top.hidden
+          id = m.items[i].id
+          if h[id] = invalid then h[id] = true else h.Delete(id)
+          m.top.hidden = h
+      end if
+      m.index = i
+      paint()
+      return true
+  end function
+  ]]>
+  </script>
+</component>

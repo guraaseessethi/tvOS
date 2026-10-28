@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec 6.1 layers 1-4 as ONE pre-composited image per theme (wall_<key>_home.jpg, made by
+  roku/tools/gen_home_walls.swift): sharp painting, blur faded in from y=497 to y=691, and the
+  deep-tinted scrims. Seventeen stacked full-screen layers made the TV lag; one keeps it smooth.
+  Changing theme crossfades between two posters once the new image has loaded (spec 8.3).
+-->
+<component name="WallpaperLayer" extends="Group">
+  <interface>
+    <field id="theme" type="string" value="starry" onChange="onTheme" />
+    <field id="deep" type="color" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.a = m.top.createChild("Poster")
+      m.b = m.top.createChild("Poster")
+      m.a.id = "wallA"
+      m.b.id = "wallB"
+      for each p in [m.a, m.b]
+          p.width = 1920
+          p.height = 1080
+      end for
+      m.b.opacity = 0
+      m.front = m.a
+      m.a.uri = "pkg:/images/wall/wall_" + m.top.theme + "_home.jpg"
+      m.top.deep = LumenTheme().themes[m.top.theme].deep
+
+      m.fade = m.top.createChild("Animation")
+      m.fade.duration = 0.9
+      m.fade.easeFunction = "inOutCubic"
+      m.fadeIn = m.fade.createChild("FloatFieldInterpolator")
+      m.fadeIn.key = [0, 1]
+      m.fadeIn.keyValue = [0, 1]
+      m.fadeOut = m.fade.createChild("FloatFieldInterpolator")
+      m.fadeOut.key = [0, 1]
+      m.fadeOut.keyValue = [1, 0]
+  end sub
+
+  sub onTheme()
+      key = m.top.theme
+      t = LumenTheme().themes[key]
+      if t = invalid or m.front = invalid then return
+      if m.front.isSameNode(m.a) then m.back = m.b else m.back = m.a
+      m.back.observeField("loadStatus", "onLoaded")
+      m.back.uri = "pkg:/images/wall/wall_" + key + "_home.jpg"
+      m.top.deep = t.deep
+  end sub
+
+  ' Crossfade only once the new painting is decoded, so there's never a flash (spec 8.3).
+  sub onLoaded()
+      if m.back.loadStatus <> "ready" then return
+      m.back.unobserveField("loadStatus")
+      m.fadeIn.fieldToInterp = m.back.id + ".opacity"
+      m.fadeOut.fieldToInterp = m.front.id + ".opacity"
+      m.fade.control = "start"
+      m.front = m.back
+  end sub
+  ]]>
+  </script>
+</component>

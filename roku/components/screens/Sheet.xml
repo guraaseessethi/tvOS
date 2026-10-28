@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paper side sheet (spec 13.3): slides in from the right over a dim layer.
+  rows: [{ id, label, value?, choices? [{ label, value }] , note? }]
+    - a row with choices shows "<value>  ›"; OK opens its options as a list ("Selected" marks the
+      current one); OK on an option applies it (reported in `changed`) and goes back; Back goes back
+    - OK on a plain row reports `chosen` { id, value }
+  No left/right anywhere: the owner found it unclear.
+  Focused row: ink fill with white text (yellow stays an accent only).
+-->
+<component name="Sheet" extends="Group">
+  <interface>
+    <field id="title" type="string" onChange="onTitle" />
+    <field id="subtitle" type="string" onChange="onTitle" />
+    <field id="rows" type="array" onChange="build" />
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="open" type="boolean" value="false" onChange="onOpen" />
+    <field id="chosen" type="assocarray" alwaysNotify="true" />
+    <field id="changed" type="assocarray" alwaysNotify="true" />
+    <function name="handleKey" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.th = LumenTheme()
+      m.top.visible = false
+      m.dim = m.top.createChild("Rectangle")
+      m.dim.id = "sheetDim"
+      m.dim.width = 1920
+      m.dim.height = 1080
+      m.panel = m.top.createChild("Group")
+      m.panel.id = "sheetPanel"
+      m.panelX = 1920 - 40 - 600
+      bg = m.panel.createChild("Poster")
+      bg.uri = "pkg:/images/ui/sheet_r44.9.png"
+      bg.blendColor = m.th.paper
+      bg.width = 600
+      bg.height = 1000
+      m.titleL = m.panel.createChild("Label")
+      m.titleL.font = LumenFont("Fraunces-Title", 48)
+      m.titleL.color = m.th.ink
+      m.titleL.translation = [44, 44]
+      m.titleL.width = 520
+      m.titleL.height = 60
+      m.subL = m.panel.createChild("Label")
+      m.subL.font = LumenFont("Manrope-Bold", 22)
+      m.subL.color = m.th.ink60
+      m.subL.translation = [46, 108]
+      m.subL.width = 520
+      m.subL.height = 30
+      m.list = m.panel.createChild("Group")
+      m.list.translation = [24, 170]
+      m.picking = invalid
+      m.index = 0
+
+      m.anim = m.top.createChild("Animation")
+      m.anim.duration = 0.26
+      m.anim.easeFunction = "outQuad"
+      m.dimIn = m.anim.createChild("FloatFieldInterpolator")
+      m.dimIn.fieldToInterp = "sheetDim.opacity"
+      m.dimIn.key = [0, 1]
+      m.slide = m.anim.createChild("Vector2DFieldInterpolator")
+      m.slide.fieldToInterp = "sheetPanel.translation"
+      m.slide.key = [0, 1]
+      m.fadeP = m.anim.createChild("FloatFieldInterpolator")
+      m.fadeP.fieldToInterp = "sheetPanel.opacity"
+      m.fadeP.key = [0, 1]
+      m.anim.observeField("state", "onAnimState")
+  end sub
+
+  sub onTitle()
+      m.titleL.text = m.top.title
+      m.subL.text = m.top.subtitle
+  end sub
+
+  sub onDeep()
+      m.dim.color = WithAlpha(m.top.deep, 0.45)
+  end sub
+
+  sub build()
+      m.list.removeChildrenIndex(m.list.getChildCount(), 0)
+      m.items = []
+      rows = m.top.rows
+      for i = 0 to rows.Count() - 1
+          r = rows[i]
+          g = m.list.createChild("Group")
+          g.translation = [0, i * 92]
+          bg = g.createChild("Poster")
+          bg.uri = "pkg:/images/ui/card_r28.9.png"
+          bg.width = 552
+          bg.height = 84
+          l = g.createChild("Label")
+          l.font = LumenFont("Manrope-Bold", 28)
+          l.translation = [24, 0]
+          l.width = 300
+          l.height = 84
+          l.vertAlign = "center"
+          l.text = r.label
+          v = g.createChild("Label")
+          v.font = LumenFont("Manrope-ExtraBold", 24)
+          v.horizAlign = "right"
+          v.translation = [230, 0]
+          v.width = 300
+          v.height = 84
+          v.vertAlign = "center"
+          m.items.Push({ bg: bg, label: l, value: v, row: r, choice: indexOfValue(r) })
+      end for
+      if m.index >= m.items.Count() then m.index = 0
+      paintRows()
+  end sub
+
+  function indexOfValue(r as object) as integer
+      if r.choices = invalid then return -1
+      for i = 0 to r.choices.Count() - 1
+          if r.choices[i].value = r.value then return i
+      end for
+      return 0
+  end function
+
+  sub paintRows()
+      for i = 0 to m.items.Count() - 1
+          it = m.items[i]
+          f = (i = m.index)
+          if it.choice >= 0
+              it.value.text = it.row.choices[it.choice].label + "   ›"
+          else if it.row.note <> invalid
+              it.value.text = it.row.note
+          else
+              it.value.text = ""
+          end if
+          if f
+              it.bg.blendColor = m.th.ink
+              it.bg.opacity = 1
+              it.label.color = m.th.white
+              it.value.color = m.th.white
+          else
+              it.bg.blendColor = m.th.ink
+              it.bg.opacity = 0.05
+              it.label.color = m.th.ink
+              it.value.color = m.th.ink60
+          end if
+      end for
+  end sub
+
+  sub onOpen()
+      m.anim.control = "stop"
+      if m.top.open
+          m.top.visible = true
+          m.picking = invalid
+          m.index = 0
+          paintRows()
+          m.dimIn.keyValue = [0, 1]
+          m.slide.keyValue = [[m.panelX + 60, 40], [m.panelX, 40]]
+          m.fadeP.keyValue = [0, 1]
+      else
+          m.dimIn.keyValue = [1, 0]
+          m.slide.keyValue = [[m.panelX, 40], [m.panelX + 60, 40]]
+          m.fadeP.keyValue = [1, 0]
+      end if
+      m.anim.control = "start"
+  end sub
+
+  sub onAnimState()
+      if m.anim.state = "stopped" and not m.top.open then m.top.visible = false
+  end sub
+
+  ' Returns false only for Back on the main list, so MainScene closes the sheet.
+  function handleKey(key as string) as boolean
+      if key = "back"
+          if m.picking = invalid then return false
+          leaveOptions()
+          return true
+      end if
+      if m.items = invalid or m.items.Count() = 0 then return true
+      if key = "up" and m.index > 0
+          m.index = m.index - 1
+      else if key = "down" and m.index < m.items.Count() - 1
+          m.index = m.index + 1
+      else if key = "OK"
+          it = m.items[m.index]
+          if m.picking <> invalid
+              ' An option was chosen: apply it to the parent row and go back.
+              p = m.picking
+              p.item.choice = m.index
+              m.top.changed = { id: p.item.row.id, value: p.item.row.choices[m.index].value }
+              leaveOptions()
+              return true
+          else if it.choice >= 0
+              enterOptions(it)
+              return true
+          end if
+          v = invalid
+          if it.row.value <> invalid then v = it.row.value
+          m.top.chosen = { id: it.row.id, value: v }
+      end if
+      paintRows()
+      return true
+  end function
+
+  ' The options of one row, shown as their own list in the same sheet.
+  sub enterOptions(it as object)
+      saved = { item: it, index: m.index, items: m.items, title: m.titleL.text, sub: m.subL.text }
+      rows = []
+      for i = 0 to it.row.choices.Count() - 1
+          note = ""
+          if i = it.choice then note = "Selected"
+          rows.Push({ id: "option", label: it.row.choices[i].label, note: note })
+      end for
+      m.titleL.text = it.row.label
+      m.subL.text = "OK to choose   ·   Back to return"
+      m.top.rows = rows
+      m.picking = saved
+      m.index = it.choice
+      paintRows()
+  end sub
+
+  sub leaveOptions()
+      p = m.picking
+      m.picking = invalid
+      ' Rebuild the main list from the remembered rows, keeping the updated choice.
+      rows = []
+      for each old in p.items
+          r = old.row
+          if old.choice >= 0 then r.value = r.choices[old.choice].value
+          rows.Push(r)
+      end for
+      m.titleL.text = p.title
+      m.subL.text = p.sub
+      m.top.rows = rows
+      m.index = p.index
+      paintRows()
+  end sub
+  ]]>
+  </script>
+</component>

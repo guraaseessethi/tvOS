@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec 7: the Zeus panel. A paper "letter" on the right: header, the last few messages,
+  suggestion chips and the "Ask Zeus anything…" bar (OK opens the on-screen keyboard).
+  User bubbles are ink (owner asked for less yellow); Zeus bubbles are white.
+  Emits `ask` (text to send). MainScene talks to the bridge and runs the actions.
+-->
+<component name="ZeusPanel" extends="Group">
+  <interface>
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="open" type="boolean" value="false" onChange="onOpen" />
+    <field id="ask" type="string" alwaysNotify="true" />
+    <field id="thinking" type="boolean" value="false" onChange="renderChat" />
+    <function name="addMessage" />
+    <function name="setChips" />
+    <function name="history" />
+    <function name="handleKey" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.th = LumenTheme()
+      m.top.visible = false
+      m.X = 1220
+      m.W = 660
+      m.dim = m.top.createChild("Rectangle")
+      m.dim.id = "zeusDim"
+      m.dim.width = 1920
+      m.dim.height = 1080
+      m.panel = m.top.createChild("Group")
+      m.panel.id = "zeusPanel"
+      m.panel.translation = [m.X, 40]
+      bg = m.panel.createChild("Poster")
+      bg.uri = "pkg:/images/ui/sheet_r44.9.png"
+      bg.blendColor = m.th.paper
+      bg.width = m.W
+      bg.height = 1000
+
+      mark = m.panel.createChild("Poster")
+      mark.uri = "pkg:/images/brand/zeus_mark_72.png"
+      mark.translation = [40, 40]
+      mark.width = 72
+      mark.height = 72
+      t = m.panel.createChild("Label")
+      t.font = LumenFont("Fraunces-Title", 52)
+      t.color = m.th.ink
+      t.text = "Zeus"
+      t.translation = [130, 34]
+      t.width = 400
+      t.height = 64
+      s = m.panel.createChild("Label")
+      s.font = LumenFont("Manrope-Bold", 22)
+      s.color = m.th.ink60
+      s.text = "Your TV's assistant"
+      s.translation = [132, 92]
+      s.width = 400
+      s.height = 30
+
+      ' Conversation: bottom-aligned between y=150 and y=740 (panel coordinates).
+      m.chat = m.panel.createChild("Group")
+      m.chat.clippingRect = [0, 150, m.W, 590]
+      m.messages = []
+
+      m.chipRow = m.panel.createChild("Group")
+      m.chipRow.translation = [40, 760]
+      m.chips = []
+
+      ' Input bar.
+      m.bar = m.panel.createChild("Group")
+      m.bar.translation = [40, 880]
+      m.barBg = m.bar.createChild("Poster")
+      m.barBg.uri = "pkg:/images/ui/pill_64.9.png"
+      m.barBg.width = m.W - 80
+      m.barBg.height = 76
+      m.barL = m.bar.createChild("Label")
+      m.barL.font = LumenFont("Manrope-SemiBold", 25)
+      m.barL.text = "Ask Zeus anything…"
+      m.barL.translation = [30, 0]
+      m.barL.width = m.W - 140
+      m.barL.height = 76
+      m.barL.vertAlign = "center"
+
+      m.focusRow = "chips"
+      m.chipIndex = 0
+
+      m.anim = m.top.createChild("Animation")
+      m.anim.duration = 0.28
+      m.anim.easeFunction = "outQuad"
+      m.dimI = m.anim.createChild("FloatFieldInterpolator")
+      m.dimI.fieldToInterp = "zeusDim.opacity"
+      m.dimI.key = [0, 1]
+      m.slideI = m.anim.createChild("Vector2DFieldInterpolator")
+      m.slideI.fieldToInterp = "zeusPanel.translation"
+      m.slideI.key = [0, 1]
+      m.fadeI = m.anim.createChild("FloatFieldInterpolator")
+      m.fadeI.fieldToInterp = "zeusPanel.opacity"
+      m.fadeI.key = [0, 1]
+      m.anim.observeField("state", "onAnim")
+
+      setChips(["What should I watch?", "Paint me something sunny", "Sleep in 30 min", "Volume up a bit"])
+      addMessage("zeus", "Hi, I'm Zeus. Ask me to open an app, change the painting or set a sleep timer.")
+  end sub
+
+  sub onDeep()
+      m.dim.color = WithAlpha(m.top.deep, 0.45)
+  end sub
+
+  sub onOpen()
+      m.anim.control = "stop"
+      if m.top.open
+          m.top.visible = true
+          m.focusRow = "chips"
+          m.chipIndex = 0
+          paintFocus()
+          m.dimI.keyValue = [0, 1]
+          m.slideI.keyValue = [[m.X + 60, 40], [m.X, 40]]
+          m.fadeI.keyValue = [0, 1]
+      else
+          m.dimI.keyValue = [1, 0]
+          m.slideI.keyValue = [[m.X, 40], [m.X + 60, 40]]
+          m.fadeI.keyValue = [1, 0]
+      end if
+      m.anim.control = "start"
+  end sub
+
+  sub onAnim()
+      if m.anim.state = "stopped" and not m.top.open then m.top.visible = false
+  end sub
+
+  ' role: "user" | "zeus". Keeps the last six for history; shows what fits.
+  function addMessage(role as string, text as string) as boolean
+      m.messages.Push({ role: role, text: text })
+      while m.messages.Count() > 6
+          m.messages.Shift()
+      end while
+      renderChat()
+      return true
+  end function
+
+  function history() as object
+      out = []
+      for each msg in m.messages
+          out.Push({ role: msg.role, text: msg.text })
+      end for
+      return out
+  end function
+
+  sub renderChat()
+      if m.chat = invalid then return
+      m.chat.removeChildrenIndex(m.chat.getChildCount(), 0)
+      items = []
+      for each msg in m.messages
+          items.Push(msg)
+      end for
+      if m.top.thinking then items.Push({ role: "zeus", text: "…" })
+      y = 740
+      for i = items.Count() - 1 to 0 step -1
+          it = items[i]
+          ' Labels don't report wrapped height reliably here; estimate ~30 characters a line.
+          lines = Int((Len(it.text) + 29) / 30)
+          if lines < 1 then lines = 1
+          if lines > 5 then lines = 5
+          h = lines * 36 + 40
+          w = 470
+          if lines = 1 then w = Len(it.text) * 14 + 52
+          if w > 470 then w = 470
+          if w < 90 then w = 90
+          y = y - h - 14
+          if y < 150 - h then exit for
+          g = m.chat.createChild("Group")
+          if it.role = "user" then x = m.W - 40 - w else x = 40
+          g.translation = [x, y]
+          b = g.createChild("Poster")
+          b.uri = "pkg:/images/ui/bubble_r28.9.png"
+          b.width = w
+          b.height = h
+          l = g.createChild("Label")
+          l.font = LumenFont("Manrope-SemiBold", 26)
+          l.text = it.text
+          l.translation = [24, 20]
+          l.width = w - 48
+          l.height = h - 40
+          l.wrap = true
+          l.maxLines = 5
+          if it.role = "user"
+              b.blendColor = m.th.ink
+              l.color = m.th.white
+          else
+              b.blendColor = m.th.white
+              l.color = m.th.ink
+          end if
+      end for
+  end sub
+
+  function setChips(list as object) as boolean
+      m.chipRow.removeChildrenIndex(m.chipRow.getChildCount(), 0)
+      m.chips = []
+      x = 0
+      y = 0
+      for each c in list
+          g = m.chipRow.createChild("Group")
+          bg = g.createChild("Poster")
+          bg.uri = "pkg:/images/ui/pill_64.9.png"
+          bg.height = 56
+          ring = g.createChild("Poster")
+          ring.uri = "pkg:/images/ui/pill_64_stroke.9.png"
+          ring.height = 56
+          ring.blendColor = m.th.ink
+          l = g.createChild("Label")
+          l.font = LumenFont("Manrope-Bold", 23)
+          l.text = c
+          l.height = 56
+          l.vertAlign = "center"
+          l.translation = [22, 0]
+          tw = l.boundingRect().width
+          if tw <= 0 then tw = Len(c) * 12
+          l.width = tw + 2
+          w = tw + 44
+          bg.width = w
+          ring.width = w
+          if x + w > m.W - 80
+              x = 0
+              y = y + 66
+          end if
+          g.translation = [x, y]
+          x = x + w + 10
+          m.chips.Push({ bg: bg, ring: ring, label: l, text: c })
+      end for
+      m.chipIndex = 0
+      paintFocus()
+      return true
+  end function
+
+  sub paintFocus()
+      for i = 0 to m.chips.Count() - 1
+          c = m.chips[i]
+          f = (m.focusRow = "chips" and i = m.chipIndex)
+          if f
+              c.bg.blendColor = m.th.ink
+              c.bg.opacity = 1
+              c.label.color = m.th.white
+          else
+              c.bg.blendColor = m.th.white
+              c.bg.opacity = 1
+              c.label.color = m.th.ink
+          end if
+      end for
+      if m.focusRow = "bar"
+          m.barBg.blendColor = m.th.ink
+          m.barL.color = m.th.white
+      else
+          m.barBg.blendColor = m.th.white
+          m.barL.color = WithAlpha(m.th.ink, 0.55)
+      end if
+  end sub
+
+  function handleKey(key as string) as boolean
+      if m.focusRow = "chips"
+          if key = "left" and m.chipIndex > 0 then m.chipIndex = m.chipIndex - 1
+          if key = "right" and m.chipIndex < m.chips.Count() - 1 then m.chipIndex = m.chipIndex + 1
+          if key = "down" or m.chips.Count() = 0 then m.focusRow = "bar"
+          if key = "OK" and m.chips.Count() > 0 then m.top.ask = m.chips[m.chipIndex].text
+      else
+          if key = "up" and m.chips.Count() > 0 then m.focusRow = "chips"
+          if key = "OK" then openKeyboard()
+      end if
+      paintFocus()
+      return true
+  end function
+
+  sub openKeyboard()
+      kb = CreateObject("roSGNode", "StandardKeyboardDialog")
+      kb.title = "Ask Zeus"
+      kb.message = ["Try: open YouTube, volume down a lot, sleep in an hour"]
+      kb.buttons = ["Ask", "Cancel"]
+      kb.observeField("buttonSelected", "onKeyboard")
+      m.kb = kb
+      m.top.getScene().dialog = kb
+  end sub
+
+  sub onKeyboard()
+      text = m.kb.text
+      chosen = m.kb.buttonSelected
+      m.kb.close = true
+      m.kb = invalid
+      if chosen = 0 and text <> invalid and text.Trim() <> "" then m.top.ask = text.Trim()
+  end sub
+  ]]>
+  </script>
+</component>

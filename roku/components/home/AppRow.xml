@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec 6.5: the hero row. Tiles 288x192 on a 324 pitch from x=96, y=624.
+  Focus stays at most in visible slot 4; the row slides one pitch at a time. Right edge fades into deep.
+-->
+<component name="AppRow" extends="Group">
+  <interface>
+    <field id="apps" type="array" onChange="build" />
+    <field id="focusIndex" type="integer" value="0" onChange="onFocusIndex" />
+    <field id="active" type="boolean" value="false" onChange="onFocusIndex" />
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="count" type="integer" value="0" />
+    <field id="reduceMotion" type="boolean" value="false" />
+    <field id="iconBase" type="string" />
+    <!-- Photo URLs for the Memories card (always the first card). -->
+    <field id="photos" type="array" onChange="onPhotos" />
+    <field id="lifted" type="boolean" value="false" onChange="onLifted" />
+    <function name="current" />
+    <function name="moveFocused" />
+    <function name="pressFocused" />
+    <function name="focusCenterX" />
+    <function name="indexNearestX" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      th = LumenTheme()
+      m.th = th
+      m.top.translation = [0, th.rowY]
+
+      m.slider = m.top.createChild("Group")
+      m.slider.id = "slider"
+      m.tiles = m.slider.createChild("Group")
+
+      m.name = m.top.createChild("Label")
+      m.name.id = "name"
+      m.name.font = LumenFont("Manrope-ExtraBold", 28)
+      m.name.color = th.white
+      m.name.horizAlign = "center"
+      m.name.width = 340
+      m.name.opacity = 0
+
+      m.slide = m.top.createChild("Animation")
+      m.slide.duration = 0.24
+      m.slide.easeFunction = "inOutCubic"
+      m.slideX = m.slide.createChild("Vector2DFieldInterpolator")
+      m.slideX.fieldToInterp = "slider.translation"
+      m.slideX.key = [0, 1]
+
+      m.nameIn = m.top.createChild("Animation")
+      m.nameIn.duration = 0.26
+      m.nameIn.easeFunction = "outCubic"
+      ni = m.nameIn.createChild("FloatFieldInterpolator")
+      ni.fieldToInterp = "name.opacity"
+      ni.key = [0, 0.23, 1]
+      ni.keyValue = [0, 0, 1]
+      m.namePos = m.nameIn.createChild("Vector2DFieldInterpolator")
+      m.namePos.fieldToInterp = "name.translation"
+      m.namePos.key = [0, 0.23, 1]
+
+      m.offset = 0
+      m.prevIndex = -1
+  end sub
+
+  sub build()
+      m.tiles.removeChildrenIndex(m.tiles.getChildCount(), 0)
+      list = [{ id: "lumen.memories", name: "Memories", type: "lumen" }]
+      for each a in m.top.apps
+          list.Push(a)
+      end for
+      list = savedOrder(list)
+      list.Push({ id: "lumen.add", name: "Add app", type: "lumen" })
+      m.nodes = []
+      for i = 0 to list.Count() - 1
+          t = m.tiles.createChild("AppTile")
+          t.iconBase = m.top.iconBase
+          t.reduceMotion = m.top.reduceMotion
+          t.app = list[i]
+          if list[i].id = "lumen.memories" and m.top.photos <> invalid then t.photos = m.top.photos
+          t.baseX = m.th.rowX + i * m.th.tilePitch
+          m.nodes.Push(t)
+      end for
+      m.list = list
+      m.top.count = list.Count()
+      m.prevIndex = -1
+      fadeEdge()
+      if m.top.focusIndex >= list.Count() then m.top.focusIndex = list.Count() - 1
+      onFocusIndex()
+  end sub
+
+  sub onFocusIndex()
+      if m.list = invalid then return
+      idx = m.top.focusIndex
+      for i = 0 to m.nodes.Count() - 1
+          m.nodes[i].focused = (m.top.active and i = idx)
+      end for
+
+      ' Keep the focused tile at most in the 4th visible slot; never scroll past the first tile.
+      newOffset = m.offset
+      if idx - newOffset > m.th.maxSlot then newOffset = idx - m.th.maxSlot
+      if idx < newOffset then newOffset = idx
+      if newOffset < 0 then newOffset = 0
+      if newOffset <> m.offset
+          m.slideX.keyValue = [[-m.offset * m.th.tilePitch, 0], [-newOffset * m.th.tilePitch, 0]]
+          m.offset = newOffset
+          fadeEdge()
+          if m.top.reduceMotion
+              m.slider.translation = [-newOffset * m.th.tilePitch, 0]
+          else
+              m.slide.control = "start"
+          end if
+      end if
+
+      if m.top.active and idx >= 0 and idx < m.list.Count()
+          m.name.text = m.list[idx].name
+          cx = m.th.rowX + (idx - m.offset) * m.th.tilePitch + m.th.tileW / 2
+          x = cx - 170
+          m.namePos.keyValue = [[x, 230], [x, 230], [x, 224]]
+          if idx <> m.prevIndex
+              if m.top.reduceMotion
+                  m.name.translation = [x, 224]
+                  m.name.opacity = 1
+              else
+                  m.nameIn.control = "start"
+              end if
+          end if
+      else
+          m.name.opacity = 0
+      end if
+      m.prevIndex = idx
+  end sub
+
+  sub onPhotos()
+      if m.list = invalid then return
+      for i = 0 to m.list.Count() - 1
+          if m.list[i].id = "lumen.memories" then m.nodes[i].photos = m.top.photos
+      end for
+  end sub
+
+  ' Edit Home (spec 13.4): the user's card order, saved by id; new apps join at the end.
+  function savedOrder(list as object) as object
+      saved = ParseJson(CreateObject("roRegistrySection", "lumen").Read("homeOrder"))
+      if saved = invalid then return list
+      out = []
+      used = {}
+      for each id in saved
+          for each a in list
+              if a.id = id and used[a.id] = invalid
+                  out.Push(a)
+                  used[a.id] = true
+              end if
+          end for
+      end for
+      for each a in list
+          if used[a.id] = invalid then out.Push(a)
+      end for
+      return out
+  end function
+
+  sub onLifted()
+      if m.nodes = invalid then return
+      i = m.top.focusIndex
+      if i >= 0 and i < m.nodes.Count() then m.nodes[i].lifted = m.top.lifted
+  end sub
+
+  ' Moves the focused card one place left or right (never past Add app) and saves the order.
+  function moveFocused(d as integer) as integer
+      i = m.top.focusIndex
+      j = i + d
+      last = m.list.Count() - 2
+      if i > last or j < 0 or j > last then return i
+      a = m.list[i] : m.list[i] = m.list[j] : m.list[j] = a
+      n = m.nodes[i] : m.nodes[i] = m.nodes[j] : m.nodes[j] = n
+      m.nodes[i].baseX = m.th.rowX + i * m.th.tilePitch
+      m.nodes[j].baseX = m.th.rowX + j * m.th.tilePitch
+      ids = []
+      for k = 0 to last
+          ids.Push(m.list[k].id)
+      end for
+      sec = CreateObject("roRegistrySection", "lumen")
+      sec.Write("homeOrder", FormatJson(ids))
+      sec.Flush()
+      m.top.focusIndex = j
+      fadeEdge()
+      return j
+  end function
+
+  sub onDeep()
+  end sub
+
+  ' Spec 6.5 right-edge fade. A deep overlay showed as a box over the painting on the TV,
+  ' so tiles past x=1560 dissolve by their own opacity instead.
+  sub fadeEdge()
+      for i = 0 to m.nodes.Count() - 1
+          x = m.th.rowX + (i - m.offset) * m.th.tilePitch
+          o = (1920 - x) / 360.0
+          if o > 1 then o = 1
+          if o < 0 then o = 0
+          m.nodes[i].opacity = 0.15 + 0.85 * o
+      end for
+  end sub
+
+  function current() as object
+      if m.list = invalid then return invalid
+      return m.list[m.top.focusIndex]
+  end function
+
+  ' Called by MainScene on OK so the focused tile plays its press animation.
+  function pressFocused() as object
+      if m.list = invalid then return invalid
+      t = m.nodes[m.top.focusIndex]
+      if t <> invalid then t.pressed = true
+      return m.list[m.top.focusIndex]
+  end function
+
+  ' Centre x of the focused tile on screen, for nearest-by-x row changes (spec 11).
+  function focusCenterX() as float
+      return m.th.rowX + (m.top.focusIndex - m.offset) * m.th.tilePitch + m.th.tileW / 2
+  end function
+
+  function indexNearestX(x as float) as integer
+      if m.list = invalid then return 0
+      best = m.offset
+      bestD = 99999
+      for i = m.offset to m.list.Count() - 1
+          cx = m.th.rowX + (i - m.offset) * m.th.tilePitch + m.th.tileW / 2
+          d = Abs(cx - x)
+          if d < bestD then bestD = d : best = i
+      end for
+      return best
+  end function
+  ]]>
+  </script>
+</component>

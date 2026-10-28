@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Star Catcher: hold ‹ › to move the basket. Catch stars (+1), dodge ink drops.
+  Three lives: a missed star or a caught drop costs one. It gets faster as you go.
+-->
+<component name="CatchGame" extends="Group">
+  <interface>
+    <field id="theme" type="string" onChange="onTheme" />
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="key" type="string" alwaysNotify="true" onChange="onKey" />
+    <field id="state" type="string" value="ready" />
+    <field id="points" type="integer" value="0" />
+    <field id="best" type="integer" value="0" />
+    <field id="newBest" type="boolean" value="false" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript" uri="pkg:/components/games/GameKit.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.W = LumenTheme().gameW
+      m.H = LumenTheme().gameH
+      m.bw = 140
+      m.bh = 70
+      m.by = m.H - m.bh - 14
+
+      kitInit("catch")
+      m.sky = m.top.createChild("Poster")
+      m.sky.width = m.W
+      m.sky.height = m.W * 9 / 16
+      m.sky.translation = [0, -150]
+      m.scrim = m.top.createChild("Rectangle")
+      m.scrim.width = m.W
+      m.scrim.height = m.H
+      kitStripAnim(m.top, "pkg:/images/games/hills_night.png", 1400, 80, m.H - 72, 24)
+
+      ' Pool of falling items; each slot holds a star and a drop and shows one of them.
+      m.items = m.top.createChild("Group")
+      m.pool = []
+      for i = 0 to 11
+          g = m.items.createChild("Group")
+          star = g.createChild("Poster")
+          star.uri = "pkg:/images/games/star.png"
+          star.width = 52
+          star.height = 52
+          ink = g.createChild("Poster")
+          ink.uri = "pkg:/images/games/drop.png"
+          ink.width = 38
+          ink.height = 46
+          g.visible = false
+          m.pool.Push({ g: g, star: star, ink: ink, x: 0.0, y: 0.0, drop: false, w: 0, h: 0, used: false })
+      end for
+
+      m.basket = m.top.createChild("Poster")
+      m.basket.uri = "pkg:/images/games/basket.png"
+      m.basket.width = m.bw
+      m.basket.height = m.bh
+
+      m.lifeIcons = []
+      for i = 0 to 2
+          p = m.top.createChild("Poster")
+          p.uri = "pkg:/images/games/star.png"
+          p.width = 34
+          p.height = 34
+          p.translation = [18 + i * 40, 16]
+          m.lifeIcons.Push(p)
+      end for
+      reset()
+  end sub
+
+  sub onTheme()
+      m.sky.uri = "pkg:/images/wall/wall_" + m.top.theme + ".jpg"
+  end sub
+
+  sub onDeep()
+      m.scrim.color = WithAlpha(m.top.deep, 0.25)
+  end sub
+
+  sub reset()
+      for each it in m.pool
+          it.used = false
+          it.g.visible = false
+      end for
+      m.bx = (m.W - m.bw) / 2
+      m.dir = 0
+      m.lives = 3
+      m.spawnT = 0.5
+      m.interval = 0.9
+      m.fall = 150
+      m.basket.translation = [m.bx, m.by]
+      for each p in m.lifeIcons
+          p.opacity = 1
+      end for
+  end sub
+
+  sub begin()
+  end sub
+
+  sub action(k as string)
+      if k = "left"
+          m.dir = -1
+      else if k = "right"
+          m.dir = 1
+      else if k = "left_up" and m.dir = -1
+          m.dir = 0
+      else if k = "right_up" and m.dir = 1
+          m.dir = 0
+      end if
+  end sub
+
+  sub spawn()
+      for each it in m.pool
+          if not it.used
+              it.used = true
+              it.drop = Rnd(100) <= 22 + m.top.points / 2
+              it.star.visible = not it.drop
+              it.ink.visible = it.drop
+              if it.drop
+                  it.w = 38
+                  it.h = 46
+              else
+                  it.w = 52
+                  it.h = 52
+              end if
+              it.x = 20 + Rnd(m.W - 80)
+              it.y = -60.0
+              it.g.translation = [it.x, it.y]
+              it.g.visible = true
+              return
+          end if
+      end for
+  end sub
+
+  sub loseLife()
+      m.lives = m.lives - 1
+      if m.lives >= 0 and m.lives < 3 then m.lifeIcons[m.lives].opacity = 0.2
+      if m.lives <= 0 then kitOver()
+  end sub
+
+  sub advance(dt as float)
+      m.bx = m.bx + m.dir * 640 * dt
+      if m.bx < 0 then m.bx = 0
+      if m.bx > m.W - m.bw then m.bx = m.W - m.bw
+      m.basket.translation = [m.bx, m.by]
+
+      m.spawnT = m.spawnT - dt
+      if m.spawnT <= 0
+          spawn()
+          m.spawnT = m.interval
+          if m.interval > 0.36 then m.interval = m.interval - 0.015
+          if m.fall < 360 then m.fall = m.fall + 3
+      end if
+
+      for each it in m.pool
+          if it.used and m.top.state = "play"
+              it.y = it.y + m.fall * dt
+              it.g.translation = [it.x, it.y]
+              cx = it.x + it.w / 2
+              if it.y + it.h >= m.by + 12 and it.y < m.by + 34 and cx > m.bx + 12 and cx < m.bx + m.bw - 12
+                  it.used = false
+                  it.g.visible = false
+                  if it.drop then loseLife() else m.top.points = m.top.points + 1
+              else if it.y > m.H
+                  it.used = false
+                  it.g.visible = false
+                  if not it.drop then loseLife()
+              end if
+          end if
+      end for
+  end sub
+  ]]>
+  </script>
+</component>

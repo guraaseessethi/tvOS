@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumen</title>
+<style>
+  :root { --ink: #1C1C1C; --paper: #FBF7EC; --deep: #14184A; --yellow: #FFDE03; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+         background: radial-gradient(120% 80% at 20% 0%, #2B3A8F 0%, var(--deep) 60%);
+         font: 17px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); }
+  .card { width: 100%; max-width: 380px; background: var(--paper); border-radius: 28px; padding: 28px 24px;
+          box-shadow: 0 18px 50px rgba(0,0,0,.35); }
+  .mark { width: 48px; height: 48px; border-radius: 50%; background: var(--yellow); display: grid; place-items: center; }
+  .mark i { width: 26px; height: 26px; border-radius: 50%; border: 3px dashed var(--ink); display: grid; place-items: center; }
+  .mark i::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--ink); }
+  h1 { font: 600 28px/1.15 Georgia, "Times New Roman", serif; margin: 16px 0 6px; }
+  p { margin: 0 0 20px; color: rgba(28,28,28,.65); }
+  label { font-weight: 700; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: rgba(28,28,28,.6); }
+  input { width: 100%; margin: 8px 0 18px; padding: 14px 16px; font-size: 18px; border: 2px solid rgba(28,28,28,.15);
+          border-radius: 14px; background: #fff; color: var(--ink); }
+  input:focus { outline: none; border-color: var(--ink); }
+  button { width: 100%; padding: 15px; font-size: 17px; font-weight: 800; border: 0; border-radius: 999px;
+           background: var(--ink); color: #fff; }
+  .small { font-size: 14px; }
+  .done, .expired { display: none; }
+  .ok .form, .expired-on .form { display: none; }
+  .ok .done, .expired-on .expired { display: block; }
+</style>
+</head>
+<body>
+  <main class="card" id="card">
+    <div class="mark"><i></i></div>
+    <div class="form">
+      <h1>Say hello to Lumen</h1>
+      <p>Your TV will greet you by name. Stay on the same Wi-Fi as the TV.</p>
+      <form id="f">
+        <label for="name">Your name</label>
+        <input id="name" name="name" maxlength="24" autocomplete="given-name" required>
+        <button>Connect</button>
+      </form>
+    </div>
+    <div class="done">
+      <h1 id="hi">You're connected</h1>
+      <p>Keep this page open to stay connected. Bookmark it: next time it reconnects by itself, no scanning.</p>
+      <p class="small">The full Lumen phone app (remote, Zeus and photos) is on its way.</p>
+    </div>
+    <div class="expired">
+      <h1>That code has expired</h1>
+      <p>Scan the new QR code on your TV.</p>
+    </div>
+  </main>
+<script>
+  const card = document.getElementById("card");
+  const code = new URLSearchParams(location.search).get("code") || "";
+  let device = localStorage.getItem("lumenDevice");
+  if (!device) {
+    device = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem("lumenDevice", device);
+  }
+  const post = (path, fields) => fetch(path, { method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ device, ...fields }).toString() });
+
+  function connected(name) {
+    document.getElementById("hi").textContent = name ? `Hi ${name}, you're connected` : "You're connected";
+    card.className = "card ok";
+    // Heartbeat: the TV shows the greeting while this page is open.
+    setInterval(() => { if (!document.hidden) post("/phone/ping", {}); }, 15000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) post("/phone/ping", {}); });
+  }
+
+  // A phone the TV already knows reconnects straight away.
+  fetch("/phone/status?device=" + device).then(r => r.json()).then(async (s) => {
+    if (s.known) {
+      const r = await post("/phone/hello", {});
+      if (r.ok) return connected(s.name);
+    }
+    if (!code) card.className = "card expired-on";
+  });
+
+  document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("name").value.trim();
+    if (!name) return;
+    const r = await post("/phone/hello", { name, code });
+    if (r.ok) connected(name); else card.className = "card expired-on";
+  });
+</script>
+</body>
+</html>

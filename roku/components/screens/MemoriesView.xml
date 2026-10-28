@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-screen memories: photos crossfade every 7s; ‹ › step through them; Back closes. -->
+<component name="MemoriesView" extends="Group">
+  <interface>
+    <field id="photos" type="array" />
+    <field id="open" type="boolean" value="false" onChange="onOpen" />
+    <function name="handleKey" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      th = LumenTheme()
+      m.top.visible = false
+      bg = m.top.createChild("Rectangle")
+      bg.width = 1920
+      bg.height = 1080
+      bg.color = th.ink
+      m.a = m.top.createChild("Poster")
+      m.b = m.top.createChild("Poster")
+      m.a.id = "memA"
+      m.b.id = "memB"
+      for each p in [m.a, m.b]
+          p.width = 1920
+          p.height = 1080
+          p.loadDisplayMode = "scaleToFit"
+          p.opacity = 0
+      end for
+
+      pill = m.top.createChild("Poster")
+      pill.uri = "pkg:/images/ui/pill_64.9.png"
+      pill.blendColor = WithAlpha(th.ink, 0.7)
+      pill.translation = [96, 960]
+      pill.width = 420
+      pill.height = 64
+      m.caption = m.top.createChild("Label")
+      m.caption.font = LumenFont("Manrope-ExtraBold", 24)
+      m.caption.color = th.white
+      m.caption.translation = [96, 960]
+      m.caption.width = 420
+      m.caption.height = 64
+      m.caption.horizAlign = "center"
+      m.caption.vertAlign = "center"
+
+      m.fade = m.top.createChild("Animation")
+      m.fade.duration = 0.9
+      m.fade.easeFunction = "inOutCubic"
+      m.fadeIn = m.fade.createChild("FloatFieldInterpolator")
+      m.fadeIn.key = [0, 1]
+      m.fadeIn.keyValue = [0, 1]
+      m.fadeOut = m.fade.createChild("FloatFieldInterpolator")
+      m.fadeOut.key = [0, 1]
+      m.fadeOut.keyValue = [1, 0]
+
+      m.timer = m.top.createChild("Timer")
+      m.timer.duration = 7
+      m.timer.repeat = true
+      m.timer.observeField("fire", "advance")
+      m.front = m.b
+  end sub
+
+  sub onOpen()
+      m.top.visible = m.top.open
+      if m.top.open
+          m.index = -1
+          show(1)
+          m.timer.control = "start"
+      else
+          m.timer.control = "stop"
+      end if
+  end sub
+
+  sub advance()
+      show(1)
+  end sub
+
+  sub show(d as integer)
+      list = m.top.photos
+      n = list.Count()
+      m.index = (m.index + d + n) mod n
+      if m.front.isSameNode(m.a) then back = m.b else back = m.a
+      back.uri = list[m.index]
+      m.fadeIn.fieldToInterp = back.id + ".opacity"
+      m.fadeOut.fieldToInterp = m.front.id + ".opacity"
+      m.fade.control = "start"
+      m.front = back
+      m.caption.text = "Memories · " + (m.index + 1).ToStr() + " of " + n.ToStr()
+  end sub
+
+  function handleKey(key as string) as boolean
+      if key = "left" or key = "right"
+          d = 1
+          if key = "left" then d = -1
+          show(d)
+          m.timer.control = "stop"
+          m.timer.control = "start"
+      end if
+      return true
+  end function
+  ]]>
+  </script>
+</component>

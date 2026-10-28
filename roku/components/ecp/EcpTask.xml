@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ECP through the Lumen bridge (Roku OS 16 blocks ECP to the channel's own TV). One task per request. -->
+<component name="EcpTask" extends="Task">
+  <interface>
+    <!-- { id, base, kind: "apps" | "device" | "memories" | "launch" | "keypress", appId?, key? } -->
+    <field id="request" type="assocarray" />
+    <!-- { id, kind, ok, code, apps?, device?, photos? } -->
+    <field id="response" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.top.functionName = "run"
+  end sub
+
+  sub run()
+      m.base = m.top.request.base
+      if m.base = invalid or m.base = ""
+          m.top.response = { id: m.top.request.id, kind: m.top.request.kind, ok: false, code: -2 }
+          return
+      end if
+      m.top.response = handle(m.top.request)
+  end sub
+
+  function handle(req as object) as object
+      res = { id: req.id, kind: req.kind, ok: false, code: 0 }
+      if req.kind = "apps"
+          r = http("GET", "/query/apps")
+          res.code = r.code
+          if r.code = 200 then res.apps = parseApps(r.body) : res.ok = true
+      else if req.kind = "device"
+          r = http("GET", "/query/device-info")
+          res.code = r.code
+          if r.code = 200 then res.device = parseFlat(r.body) : res.ok = true
+      else if req.kind = "memories"
+          r = http("GET", "/memories")
+          res.code = r.code
+          if r.code = 200
+              res.photos = []
+              data = ParseJson(r.body)
+              ut = CreateObject("roUrlTransfer")
+              if data <> invalid and data.photos <> invalid
+                  for each n in data.photos
+                      res.photos.Push(m.base + "/memories/" + ut.Escape(n))
+                  end for
+              end if
+              res.ok = true
+          end if
+      else if req.kind = "launch"
+          r = http("POST", "/launch/" + req.appId)
+          res.code = r.code
+          res.ok = (r.code >= 200 and r.code < 300)
+      else if req.kind = "zeus"
+          r = http("POST", "/zeus", req.body)
+          res.code = r.code
+          if r.code = 200
+              res.zeus = ParseJson(r.body)
+              res.ok = (res.zeus <> invalid)
+          end if
+      else if req.kind = "sleep"
+          r = http("POST", "/sleep/" + req.minutes.ToStr())
+          res.code = r.code
+          res.ok = (r.code >= 200 and r.code < 300)
+      else if req.kind = "keypress"
+          r = http("POST", "/keypress/" + req.key)
+          res.code = r.code
+          res.ok = (r.code >= 200 and r.code < 300)
+      end if
+      return res
+  end function
+
+  function http(method as string, path as string, body = "" as string) as object
+      ut = CreateObject("roUrlTransfer")
+      p = CreateObject("roMessagePort")
+      ut.SetMessagePort(p)
+      ut.SetUrl(m.base + path)
+      ut.RetainBodyOnError(true)
+      if method = "POST"
+          if body <> "" then ut.AddHeader("Content-Type", "application/json")
+          started = ut.AsyncPostFromString(body)
+      else
+          started = ut.AsyncGetToString()
+      end if
+      if not started then return { code: -1, body: "" }
+      ev = wait(15000, p)
+      if type(ev) <> "roUrlEvent"
+          ut.AsyncCancel()
+          return { code: -1, body: "" }
+      end if
+      return { code: ev.GetResponseCode(), body: ev.GetString() }
+  end function
+
+  ' <apps><app id="12" type="appl" version="...">Netflix</app>...</apps>
+  function parseApps(body as string) as object
+      out = []
+      xml = CreateObject("roXMLElement")
+      if not xml.Parse(body) then return out
+      for each a in xml.GetNamedElements("app")
+          attrs = a.GetAttributes()
+          if attrs.id <> "dev"
+              out.Push({ id: attrs.id, type: attrs.type, name: a.GetText() })
+          end if
+      end for
+      return out
+  end function
+
+  ' <device-info><is-tv>true</is-tv>...</device-info> -> { "is-tv": "true", ... }
+  function parseFlat(body as string) as object
+      out = {}
+      xml = CreateObject("roXMLElement")
+      if not xml.Parse(body) then return out
+      for each child in xml.GetChildElements()
+          out[child.GetName()] = child.GetText()
+      end for
+      return out
+  end function
+  ]]>
+  </script>
+</component>

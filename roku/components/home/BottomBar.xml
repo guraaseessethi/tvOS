@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec 6.6: input pills | divider | Sleep, Picture, Edit Home, Turn off TV.
+  Streaming sticks hide inputs, Picture and Turn off TV; the rest shift left.
+-->
+<component name="BottomBar" extends="Group">
+  <interface>
+    <field id="inputs" type="array" />
+    <field id="isTV" type="boolean" value="true" />
+    <field id="rebuild" type="boolean" alwaysNotify="true" onChange="build" />
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="focusIndex" type="integer" value="0" onChange="onFocus" />
+    <field id="active" type="boolean" value="false" onChange="onFocus" />
+    <field id="count" type="integer" value="0" />
+    <function name="current" />
+    <function name="focusCenterX" />
+    <function name="indexNearestX" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.top.translation = [96, 956]
+      m.items = []
+      m.nodes = []
+  end sub
+
+  sub build()
+      m.top.removeChildrenIndex(m.top.getChildCount(), 0)
+      m.items = []
+      m.nodes = []
+      x = 0
+      ' Keep pills clear of the painting credit on the right.
+      maxInputsRight = 980
+
+      if m.top.isTV and m.top.inputs <> invalid
+          for each inp in m.top.inputs
+              glyph = "pkg:/images/ui/ic_hdmi.png"
+              if inp.id = "tvinput.dtv" then glyph = "pkg:/images/ui/ic_livetv.png"
+              p = m.top.createChild("FrostPill")
+              p.deep = m.top.deep
+              p.glyph = glyph
+              p.text = inp.name
+              if x + p.width > maxInputsRight
+                  m.top.removeChild(p)
+                  exit for
+              end if
+              p.translation = [x, 0]
+              m.nodes.Push(p)
+              m.items.Push({ kind: "input", id: inp.id, name: inp.name })
+              x = x + p.width + 12
+          end for
+          if m.items.Count() > 0
+              div = m.top.createChild("Rectangle")
+              div.width = 1
+              div.height = 36
+              div.color = WithAlpha(LumenTheme().white, 0.35)
+              div.translation = [x - 2, 14]
+              x = x + 20
+          end if
+      end if
+
+      actions = [
+          { kind: "sleep", glyph: "ic_sleep", tv: false }
+          { kind: "picture", glyph: "ic_picture", tv: true }
+          { kind: "edit", glyph: "ic_edit", tv: false }
+          { kind: "off", glyph: "ic_power", tv: true }
+      ]
+      for each a in actions
+          if m.top.isTV or not a.tv
+              p = m.top.createChild("FrostPill")
+              p.deep = m.top.deep
+              p.round = true
+              p.glyph = "pkg:/images/ui/" + a.glyph + ".png"
+              p.translation = [x, 0]
+              m.nodes.Push(p)
+              m.items.Push({ kind: a.kind })
+              x = x + 64 + 12
+          end if
+      end for
+      m.top.count = m.items.Count()
+      if m.top.focusIndex >= m.items.Count() then m.top.focusIndex = 0
+      onFocus()
+  end sub
+
+  sub onFocus()
+      for i = 0 to m.nodes.Count() - 1
+          m.nodes[i].focused = (m.top.active and i = m.top.focusIndex)
+      end for
+  end sub
+
+  sub onDeep()
+      for each n in m.nodes
+          n.deep = m.top.deep
+      end for
+  end sub
+
+  function current() as object
+      if m.items.Count() = 0 then return invalid
+      return m.items[m.top.focusIndex]
+  end function
+
+  function centerOf(i as integer) as float
+      n = m.nodes[i]
+      return 96 + n.translation[0] + n.width / 2
+  end function
+
+  function focusCenterX() as float
+      if m.nodes.Count() = 0 then return 960
+      return centerOf(m.top.focusIndex)
+  end function
+
+  function indexNearestX(x as float) as integer
+      best = 0
+      bestD = 99999
+      for i = 0 to m.nodes.Count() - 1
+          d = Abs(centerOf(i) - x)
+          if d < bestD then bestD = d : best = i
+      end for
+      return best
+  end function
+  ]]>
+  </script>
+</component>

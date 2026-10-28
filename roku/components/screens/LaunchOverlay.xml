@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec 13.1 + 13.2: "Opening Music…" paper card with a yellow shimmer,
+  and the error variant with [Try again] (ink, focused) and [Dismiss] (outline).
+-->
+<component name="LaunchOverlay" extends="Group">
+  <interface>
+    <field id="app" type="assocarray" onChange="onApp" />
+    <field id="state" type="string" value="hidden" onChange="onState" />
+    <field id="reason" type="string" />
+    <field id="deep" type="color" onChange="onDeep" />
+    <field id="iconBase" type="string" />
+    <field id="buttonIndex" type="integer" value="0" onChange="paintButtons" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      th = LumenTheme()
+      m.th = th
+      m.top.visible = false
+
+      m.scrim = m.top.createChild("Rectangle")
+      m.scrim.width = 1920
+      m.scrim.height = 1080
+
+      card = m.top.createChild("Group")
+      card.translation = [640, 330]
+      m.card = card
+      sheet = card.createChild("Poster")
+      sheet.uri = "pkg:/images/ui/sheet_r44.9.png"
+      sheet.blendColor = th.paper
+      sheet.width = 640
+      sheet.height = 420
+
+      ' App icon in its painted frame at 1.25x (360x240), centred.
+      m.tileGroup = card.createChild("Group")
+      m.tileGroup.translation = [140, 44]
+      m.logoCard = m.tileGroup.createChild("Poster")
+      m.logoCard.width = 360
+      m.logoCard.height = 240
+      m.icon = m.tileGroup.createChild("Poster")
+      m.icon.width = 360
+      m.icon.height = 240
+      m.icon.loadDisplayMode = "scaleToFit"
+      m.frame = m.tileGroup.createChild("Poster")
+      m.frame.width = 360
+      m.frame.height = 240
+
+      m.title = card.createChild("Label")
+      m.title.font = LumenFont("Fraunces-Title", 40)
+      m.title.color = th.ink
+      m.title.horizAlign = "center"
+      m.title.width = 600
+      m.title.translation = [20, 300]
+
+      ' Shimmer track (13.1).
+      m.track = card.createChild("Group")
+      m.track.translation = [120, 372]
+      m.track.clippingRect = [0, 0, 400, 8]
+      bar = m.track.createChild("Rectangle")
+      bar.width = 400
+      bar.height = 8
+      bar.color = th.ink
+      m.shine = m.track.createChild("Rectangle")
+      m.shine.id = "shine"
+      m.shine.width = 120
+      m.shine.height = 8
+      m.shine.color = th.yellow
+      m.shimmer = m.top.createChild("Animation")
+      m.shimmer.duration = 1.2
+      m.shimmer.repeat = true
+      m.shimmer.easeFunction = "inOutCubic"
+      si = m.shimmer.createChild("Vector2DFieldInterpolator")
+      si.fieldToInterp = "shine.translation"
+      si.key = [0, 1]
+      si.keyValue = [[-120, 0], [400, 0]]
+
+      ' Error variant (13.2).
+      m.reason = card.createChild("Label")
+      m.reason.font = LumenFont("Manrope-SemiBold", 22)
+      m.reason.color = th.ink60
+      m.reason.horizAlign = "center"
+      m.reason.wrap = true
+      m.reason.maxLines = 2
+      m.reason.width = 560
+      m.reason.translation = [40, 350]
+
+      m.btnRetry = makeButton("Try again")
+      m.btnDismiss = makeButton("Dismiss")
+  end sub
+
+  function makeButton(text as string) as object
+      g = m.card.createChild("Group")
+      fill = g.createChild("Poster")
+      fill.uri = "pkg:/images/ui/pill_64.9.png"
+      fill.width = 200
+      fill.height = 64
+      ring = g.createChild("Poster")
+      ring.uri = "pkg:/images/ui/pill_64_stroke.9.png"
+      ring.width = 200
+      ring.height = 64
+      lbl = g.createChild("Label")
+      lbl.font = LumenFont("Manrope-ExtraBold", 24)
+      lbl.text = text
+      lbl.width = 200
+      lbl.height = 64
+      lbl.horizAlign = "center"
+      lbl.vertAlign = "center"
+      return { group: g, fill: fill, ring: ring, label: lbl }
+  end function
+
+  sub onApp()
+      a = m.top.app
+      if a = invalid then return
+      m.logoCard.uri = "pkg:/images/tiles/card_" + PastelFor(a.id) + ".png"
+      m.frame.visible = false
+      m.icon.uri = m.top.iconBase + "/query/icon/" + a.id
+  end sub
+
+  sub onDeep()
+      m.scrim.color = WithAlpha(m.top.deep, 0.55)
+  end sub
+
+  sub onState()
+      s = m.top.state
+      m.top.visible = (s <> "hidden")
+      name = ""
+      if m.top.app <> invalid then name = m.top.app.name
+      launching = (s = "launching")
+      m.track.visible = launching
+      m.reason.visible = not launching
+      m.btnRetry.group.visible = not launching
+      m.btnDismiss.group.visible = not launching
+      if launching
+          m.title.text = "Opening " + name + "…"
+          m.shimmer.control = "start"
+      else
+          m.shimmer.control = "stop"
+      end if
+      if s = "error"
+          ' The card grows to fit the reason and buttons.
+          m.title.text = "Couldn't open " + name
+          m.reason.text = m.top.reason
+          m.card.translation = [640, 280]
+          m.btnRetry.group.translation = [100, 430]
+          m.btnDismiss.group.translation = [340, 430]
+          m.card.getChild(0).height = 530
+          m.top.buttonIndex = 0
+          paintButtons()
+      else
+          m.card.translation = [640, 330]
+          m.card.getChild(0).height = 420
+      end if
+  end sub
+
+  sub paintButtons()
+      if m.btnRetry = invalid then return
+      i = m.top.buttonIndex
+      ' Primary: ink with yellow text. Outline: ink ring. Focused button: yellow fill.
+      paintButton(m.btnRetry, i = 0, true)
+      paintButton(m.btnDismiss, i = 1, false)
+  end sub
+
+  sub paintButton(b as object, focused as boolean, primary as boolean)
+      if focused
+          b.fill.visible = true
+          b.fill.blendColor = m.th.yellow
+          b.ring.visible = true
+          b.ring.blendColor = m.th.ink
+          b.label.color = m.th.ink
+      else if primary
+          b.fill.visible = true
+          b.fill.blendColor = m.th.ink
+          b.ring.visible = false
+          b.label.color = m.th.yellow
+      else
+          b.fill.visible = false
+          b.ring.visible = true
+          b.ring.blendColor = m.th.ink
+          b.label.color = m.th.ink
+      end if
+  end sub
+  ]]>
+  </script>
+</component>

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pup Run: the pup gallops through the sunflower-field painting; OK jumps the haystacks. -->
+<component name="DogGame" extends="Group">
+  <interface>
+    <field id="theme" type="string" />
+    <field id="deep" type="color" />
+    <field id="key" type="string" alwaysNotify="true" onChange="onKey" />
+    <field id="state" type="string" value="ready" />
+    <field id="points" type="integer" value="0" />
+    <field id="best" type="integer" value="0" />
+    <field id="newBest" type="boolean" value="false" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/common/Theme.brs" />
+  <script type="text/brightscript" uri="pkg:/components/games/GameKit.brs" />
+  <script type="text/brightscript">
+  <![CDATA[
+  sub init()
+      m.W = LumenTheme().gameW
+      m.H = LumenTheme().gameH
+      m.ground = 300
+      m.dw = 123
+      m.dh = 92
+
+      kitInit("dog")
+      ' Van Gogh's sunflower field: the horizon sits a little above the middle of the stage.
+      sky = m.top.createChild("Poster")
+      sky.uri = "pkg:/images/wall/wall_sunflower.jpg"
+      sky.width = m.W
+      sky.height = m.W * 9 / 16
+      sky.translation = [0, -200]
+      m.wheat = kitStrip(m.top, "pkg:/images/games/wheat_vg.png", 1400, 84, m.H - 84)
+
+      m.stacks = m.top.createChild("Group")
+      m.pool = []
+      for i = 0 to 5
+          p = m.stacks.createChild("Poster")
+          p.uri = "pkg:/images/games/haystack.png"
+          p.visible = false
+          m.pool.Push({ p: p, x: 0.0, w: 0, h: 0, used: false })
+      end for
+
+      m.shadow = m.top.createChild("Poster")
+      m.shadow.uri = "pkg:/images/games/shadow.png"
+      m.shadow.width = 100
+      m.shadow.height = 18
+
+      frames = []
+      for i = 0 to 3
+          frames.Push("pkg:/images/games/dog_run_" + i.ToStr() + ".png")
+      end for
+      frames.Push("pkg:/images/games/dog_jump.png")
+      m.dog = kitSprite(m.top, frames, m.dw, m.dh)
+      reset()
+  end sub
+
+  sub reset()
+      for each s in m.pool
+          s.used = false
+          s.p.visible = false
+      end for
+      m.x = 120
+      m.y = m.ground - m.dh
+      m.vy = 0
+      m.onGround = true
+      m.dist = 0
+      m.speed = 300
+      m.nextStack = 420
+      m.anim = 0
+      place()
+      kitFrame(m.dog, 0)
+  end sub
+
+  sub place()
+      m.dog.g.translation = [m.x, m.y]
+      ' The shadow stays on the ground and shrinks as the pup rises.
+      lift = (m.ground - m.dh - m.y) / 160.0
+      if lift < 0 then lift = 0
+      if lift > 0.6 then lift = 0.6
+      m.shadow.scale = [1 - lift, 1 - lift]
+      m.shadow.translation = [m.x + 10 + 50 * lift, m.ground - 10]
+  end sub
+
+  sub begin()
+  end sub
+
+  sub action(k as string)
+      if k = "OK" and m.onGround
+          m.vy = -700
+          m.onGround = false
+      end if
+  end sub
+
+  sub addStack(x as float)
+      for each s in m.pool
+          if not s.used
+              s.used = true
+              s.w = 64 + Rnd(36)
+              s.h = s.w * 92 / 128
+              s.x = x
+              s.p.width = s.w
+              s.p.height = s.h
+              s.p.translation = [s.x, m.ground - s.h + 6]
+              s.p.visible = true
+              return
+          end if
+      end for
+  end sub
+
+  sub advance(dt as float)
+      if not m.onGround
+          m.vy = m.vy + 2100 * dt
+          m.y = m.y + m.vy * dt
+          if m.y >= m.ground - m.dh
+              m.y = m.ground - m.dh
+              m.vy = 0
+              m.onGround = true
+          end if
+          kitFrame(m.dog, 4)
+      else
+          m.anim = m.anim + dt * m.speed / 300.0
+          kitFrame(m.dog, Int(m.anim / 0.08) mod 4)
+      end if
+      place()
+
+      m.speed = m.speed + 10 * dt
+      if m.speed > 620 then m.speed = 620
+      m.dist = m.dist + m.speed * dt
+      m.top.points = Int(m.dist / 16)
+      kitScroll(m.wheat, m.speed * dt)
+
+      m.nextStack = m.nextStack - m.speed * dt
+      if m.nextStack <= 0
+          addStack(m.W)
+          ' Now and then a pair; spacing grows with speed so every jump stays fair.
+          if Rnd(5) = 1 then addStack(m.W + 80)
+          m.nextStack = (360 + Rnd(320)) * m.speed / 300.0
+      end if
+
+      hit = false
+      for each s in m.pool
+          if s.used
+              s.x = s.x - m.speed * dt
+              s.p.translation = [s.x, m.ground - s.h + 6]
+              if kitHit(m.x + 22, m.y + 18, m.dw - 40, m.dh - 26, s.x + 10, m.ground - s.h + 16, s.w - 20, s.h) then hit = true
+              if s.x + s.w < -10
+                  s.used = false
+                  s.p.visible = false
+              end if
+          end if
+      end for
+      if hit then kitOver()
+  end sub
+  ]]>
+  </script>
+</component>
